@@ -17,8 +17,9 @@ Synchronisation WhatsApp-Vorlagen mit Notion. Hält Vorlagen-Bestand zwischen Wh
 2. **NIEMALS** Issue schließen ohne Git Push + Changelog
 3. **NIEMALS** API Keys im Chat — User trägt direkt in `.env` ein
 4. **NIEMALS** Issue ohne Labels anlegen
-5. **NIEMALS** WhatsApp Business API Credentials oder Notion-Tokens loggen
+5. **NIEMALS** Superchat-API-Keys oder Notion-Tokens loggen
 6. **NIEMALS** Vorlagen-Inhalte ohne Compliance-Check (Meta-Richtlinien) versenden
+7. **NIEMALS** direkt gegen die Meta WhatsApp Business API sprechen — immer nur via Superchat (BSP)
 
 ## System-Architektur
 

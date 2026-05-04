@@ -22,11 +22,13 @@ Siehe GOVERNANCE.md §4 für Details.
 - Jede Änderung am Sync-Modul **muss** mit einem Trockendurchlauf gegen Notion-Sandbox getestet werden.
 - Konflikt-Resolution-Strategie ist projektweit einheitlich (siehe `lib/sync/conflict.js`, sobald implementiert).
 
-### WhatsApp Business API
+### Superchat (WhatsApp BSP)
 
-- Template-Änderungen müssen **vor** dem Versand bei Meta zur Genehmigung eingereicht werden.
+- Alle WhatsApp-Operationen laufen über **Superchat-API** — niemals direkt gegen Meta.
+- Template-Änderungen werden via Superchat eingereicht; Superchat leitet zur Meta-Genehmigung weiter.
 - Status-Polling auf Genehmigungen läuft async — niemals blockierend.
-- Rate Limits beachten: Tier-abhängig (1k/10k/100k pro 24h).
+- Superchat-Rate-Limits beachten (Doku prüfen vor jedem Push).
+- Inbox-ID ist Pflicht-Header für Versand-Calls.
 
 ### Compliance (Custom-Dimension)
 
