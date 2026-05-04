@@ -69,6 +69,47 @@ immer nur mit der Superchat-API.
 
 [Detailliert beschreiben, sobald Implementierung beginnt.]
 
+## Superchat-Templates-API
+
+**Endpoint:** `GET /v1.0/templates` — cursor-paginiert
+**Pagination:** Antwort enthält `pagination.next_cursor`; weitere Page via `?after=<cursor>`
+**Stand:** 271 Templates (262 approved, 9 external_deleted, 50 pro Page)
+
+### Template-Schema (Auszug)
+
+```jsonc
+{
+  "id":      "tn_...",
+  "status":  "approved" | "external_deleted",
+  "name":    "KFZ Datenabfrage",
+  "content": {
+    "body":      "Hallo {{1}} {{2}}, ...",
+    "file_ids":  ["fl_..."],          // Anhänge
+    "variables": [
+      { "position": 1, "display_name": "Vorname", "type": "static" }
+    ],
+    "type":      "generic_template"
+  },
+  "folder":    null | { "id": "fo_...", "name": "..." },
+  "channels":  [{ "id": "mc_...", "name": "VÖLKER Finance OHG", "url": "/channels/mc_..." }],
+  "createdAt": "ISO-8601",
+  "updatedAt": "ISO-8601"
+}
+```
+
+### Wichtig für Notion-Sync
+
+Notion `Vorlagentext` enthält statische Texte mit Platzhaltern wie `{{1}}`, `{{2}}`. Superchat-Schema erwartet **identisches** Variable-Format ({{n}}-Numerik) plus separate `variables[]`-Array mit `display_name`. Beim Sync also:
+
+| Notion → Superchat | Mapping |
+|---|---|
+| `Name` (title) | `name` |
+| `Vorlagentext` | `content.body` (Variablen `{{n}}` bleiben wie sie sind) |
+| `Anhang` | `content.file_ids` (vorher Upload) |
+| Variablen-Erkennung | `content.variables[]` aus `{{n}}`-Pattern erstellen |
+| `Ordner` | `folder` (Lookup oder Create) |
+| `Kategorie` | (nicht direkt in Superchat — entscheidet Meta-Kategorie beim Submission) |
+
 ## Externe Abhängigkeiten
 
 | Service | Zweck | Auth |

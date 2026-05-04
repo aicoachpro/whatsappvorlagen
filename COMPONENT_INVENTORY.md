@@ -12,7 +12,8 @@
 ├── agents/
 │   ├── self-healing.js              ← Self-Healing Agent (Check M, U, P)
 │   ├── test-env.js                  ← .env Smoke-Test (Linear / Notion / Superchat / Telegram)
-│   └── list-superchat-inboxes.js    ← Helper: listet Superchat-Inboxes (ID + Name)
+│   ├── list-superchat-inboxes.js    ← Helper: listet Superchat-Inboxes (ID + Name)
+│   └── list-superchat-templates.js  ← Helper: listet alle WA-Templates (paginiert)
 ├── journal/               ← Restart-History, Automation-Queue
 ├── specs/                 ← Spec-Files (Feature-Specs vor Code)
 ├── CLAUDE.md              ← AI-Operator Identität + Regeln
