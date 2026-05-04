@@ -14,7 +14,8 @@
 │   ├── test-env.js                  ← .env Smoke-Test (Linear / Notion / Superchat / Telegram)
 │   ├── list-superchat-inboxes.js    ← Helper: listet Superchat-Inboxes (ID + Name)
 │   ├── list-superchat-templates.js  ← Helper: listet alle WA-Templates (paginiert)
-│   └── render-template-preview.js   ← Helper: rendert WhatsApp-Bubble-Mockups (Puppeteer)
+│   ├── render-template-preview.js   ← Helper: rendert WhatsApp-Bubble-Mockups (Puppeteer)
+│   └── sync-superchat-to-notion.js  ← Phase 1: Mirror Superchat → Notion (mit Vorschaubild)
 ├── assets/
 │   └── previews/                    ← gerenderte Template-Vorschauen (PNG, nicht in Git)
 ├── package.json                     ← Dependencies (puppeteer)
