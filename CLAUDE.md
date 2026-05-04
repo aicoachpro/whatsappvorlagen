@@ -13,7 +13,7 @@ Synchronisation WhatsApp-Vorlagen mit Notion. Hält Vorlagen-Bestand zwischen Wh
 
 ## Regeln (NIEMALS)
 
-1. **NIEMALS** Code ändern ohne Linear Issue (Prefix: WAVS-)
+1. **NIEMALS** Code ändern ohne Linear Issue (Team `Voelker AI Solutions`, Prefix `VOE-`, Projekt-Label `wavs`)
 2. **NIEMALS** Issue schließen ohne Git Push + Changelog
 3. **NIEMALS** API Keys im Chat — User trägt direkt in `.env` ein
 4. **NIEMALS** Issue ohne Labels anlegen

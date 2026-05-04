@@ -10,8 +10,13 @@ Hier nur projekt-spezifische Ergänzungen.
 ## Lifecycle (Kurzfassung)
 
 ```
-Idee → /ideation → Linear Issue (WAVS-XX) → /backlog → /implement → Code + Doku → Git Push → Done
+Idee → /ideation → Linear Issue (VOE-XX, Label: wavs) → /backlog → /implement → Code + Doku → Git Push → Done
 ```
+
+**Linear-Setup:**
+- Team: `Voelker AI Solutions` (Key `VOE`)
+- Projekt: `WhatsAppVorlagen SuperChat` (ID: `7ed012ad-3d68-423f-9047-4a7ef6217b2b`)
+- Projekt-Marker-Label: `wavs` (zur Filterung)
 
 Siehe GOVERNANCE.md §4 für Details.
 
@@ -38,14 +43,14 @@ Siehe GOVERNANCE.md §4 für Details.
 ## Branch-Naming
 
 ```
-feature/WAVS-{nummer}-{slug}
-fix/WAVS-{nummer}-{slug}
+feature/VOE-{nummer}-{slug}
+fix/VOE-{nummer}-{slug}
 ```
 
 ## Commit-Format
 
 ```
-v{VERSION} — WAVS-{nummer}: {Titel}
+v{VERSION} — VOE-{nummer}: {Titel}
 ```
 
 ## Change-Checklist

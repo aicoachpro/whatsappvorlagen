@@ -10,3 +10,5 @@
 - Architektur-Dimensionen: Standard + Compliance (Meta WhatsApp Business + DSGVO)
 - BSP geklärt: **Superchat** als WhatsApp Business Solution Provider — direkter Meta-Zugriff entfällt
 - Notion-DB `Whatsapp Vorlagen` identifiziert + Schema dokumentiert (15 Felder, Mapping zu WhatsApp-Komponenten)
+- Linear-Projekt `WhatsAppVorlagen SuperChat` angelegt (ID `7ed012ad-3d68-423f-9047-4a7ef6217b2b`)
+- Issue-Prefix von `WAVS-` zu **`VOE-`** korrigiert (echtes Team-Prefix von `Voelker AI Solutions`)
