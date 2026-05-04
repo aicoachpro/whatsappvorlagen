@@ -108,7 +108,8 @@ async function checkComponentInventory() {
 
   const content  = fs.readFileSync(inventoryPath, 'utf8');
   // Extract all ├── or └── file references from the inventory
-  const fileRefs = [...content.matchAll(/[├└]── ([^\s←]+\.(js|py|sh|json|md))/g)].map(m => m[1]);
+  // Reihenfolge der Alternation wichtig: laengere zuerst (json vor js, sonst matcht "package.json" als "package.js")
+  const fileRefs = [...content.matchAll(/[├└]── ([^\s←]+\.(json|md|py|sh|js))/g)].map(m => m[1]);
 
   for (const ref of fileRefs) {
     const fullPath = path.join(PROJECT_PATH, ref);
