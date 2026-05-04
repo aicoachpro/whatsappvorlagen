@@ -75,5 +75,5 @@ immer nur mit der Superchat-API.
 | Linear | Issue Tracking | API Key (.env: `LINEAR_API_KEY`) |
 | GitHub | Code Repository | SSH/HTTPS |
 | Notion | Datenbank für Vorlagen (SSoT der Inhalte) | Integration Token (.env: `NOTION_TOKEN`, `NOTION_DATABASE_ID`) |
-| Superchat | BSP für WhatsApp Business — Template-Verwaltung + Versand + Inbox | API Key (.env: `SUPERCHAT_API_KEY`, `SUPERCHAT_INBOX_ID`) |
+| Superchat | BSP für WhatsApp Business — Template-Verwaltung + Versand + Inbox | `X-API-Key: $SUPERCHAT_API_KEY` Header gegen Base `https://api.superchat.com/v1.0` |
 | Obsidian Vault | Doku-Spiegel | Filesystem |

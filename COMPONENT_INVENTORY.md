@@ -10,7 +10,8 @@
 │   ├── config.js          ← VERSION + DOC_FILES + Config (SSoT)
 │   └── doc-sync.js        ← Obsidian Vault Sync
 ├── agents/
-│   └── self-healing.js    ← Self-Healing Agent (Check M, U, P)
+│   ├── self-healing.js    ← Self-Healing Agent (Check M, U, P)
+│   └── test-env.js        ← .env Smoke-Test (Linear / Notion / Superchat / Telegram)
 ├── journal/               ← Restart-History, Automation-Queue
 ├── specs/                 ← Spec-Files (Feature-Specs vor Code)
 ├── CLAUDE.md              ← AI-Operator Identität + Regeln
