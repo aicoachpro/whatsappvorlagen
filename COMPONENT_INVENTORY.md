@@ -13,7 +13,11 @@
 │   ├── self-healing.js              ← Self-Healing Agent (Check M, U, P)
 │   ├── test-env.js                  ← .env Smoke-Test (Linear / Notion / Superchat / Telegram)
 │   ├── list-superchat-inboxes.js    ← Helper: listet Superchat-Inboxes (ID + Name)
-│   └── list-superchat-templates.js  ← Helper: listet alle WA-Templates (paginiert)
+│   ├── list-superchat-templates.js  ← Helper: listet alle WA-Templates (paginiert)
+│   └── render-template-preview.js   ← Helper: rendert WhatsApp-Bubble-Mockups (Puppeteer)
+├── assets/
+│   └── previews/                    ← gerenderte Template-Vorschauen (PNG, nicht in Git)
+├── package.json                     ← Dependencies (puppeteer)
 ├── journal/               ← Restart-History, Automation-Queue
 ├── specs/                 ← Spec-Files (Feature-Specs vor Code)
 ├── CLAUDE.md              ← AI-Operator Identität + Regeln

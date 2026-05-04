@@ -4,3 +4,5 @@ node_modules/
 .DS_Store
 journal/restart-history.json
 journal/automation-queue.json
+assets/previews/*.png
+!assets/previews/.gitkeep

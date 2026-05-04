@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-vorlagen-superchat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synchronisation WhatsApp-Vorlagen Superchat (Master) <-> Notion (Mirror)",
+  "scripts": {
+    "test:env": "node agents/test-env.js",
+    "list:inboxes": "node agents/list-superchat-inboxes.js",
+    "list:templates": "node agents/list-superchat-templates.js",
+    "render:preview": "node agents/render-template-preview.js",
+    "self-healing": "node agents/self-healing.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}
