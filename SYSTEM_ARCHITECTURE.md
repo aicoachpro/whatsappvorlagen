@@ -12,10 +12,11 @@ Synchronisation WhatsApp-Vorlagen mit Notion. Bidirektionaler Abgleich zwischen 
 
 ## Notion-Datenquelle
 
-**Database:** `Whatsapp Vorlagen`
-**Pfad in Notion:** `🚀 CRM & Sales Hub` › `💬 Superchat Workflows & Vorlagen` › `Vorlagen Repository` › `Whatsapp Vorlagen`
-**Database ID:** `13ae35a1-94de-8026-b54e-c44acb42b3a5`
-**Data Source ID:** `d9c28910-c204-46ac-84c0-57422a89074d`
+**Database:** `Whatsapp Vorlagen autoabgleich`
+**Pfad in Notion:** `🚀 CRM & Sales Hub` › `💬 Superchat Workflows & Vorlagen` › `Vorlagen Repository` › `Whatsapp Vorlagen autoabgleich`
+**Database ID:** `07ee35a1-94de-82d2-8748-81c0763b26df`
+**Data Source ID:** `c1ce35a1-94de-8215-be2f-874936629ea4`
+**URL:** https://www.notion.so/voelkergrp/07ee35a194de82d2874881c0763b26df
 
 ### Schema
 
