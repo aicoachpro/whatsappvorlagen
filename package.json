@@ -8,6 +8,9 @@
     "list:inboxes": "node agents/list-superchat-inboxes.js",
     "list:templates": "node agents/list-superchat-templates.js",
     "render:preview": "node agents/render-template-preview.js",
+    "sync:notion": "node agents/sync-superchat-to-notion.js",
+    "sync:pb": "node agents/sync-superchat-to-pb.js",
+    "enrich:pb": "node agents/notion-enrich-to-pb.js",
     "self-healing": "node agents/self-healing.js"
   },
   "engines": {
