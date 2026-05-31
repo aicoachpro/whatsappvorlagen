@@ -54,20 +54,40 @@ Synchronisation WhatsApp-Vorlagen mit Notion. Bidirektionaler Abgleich zwischen 
 | `URL's` (dynamisch) | URL-Button mit Variable | Variable-Pattern dokumentieren |
 | `Telefonnummer` | PHONE_NUMBER-Button | |
 
-## Datenfluss
+## Datenfluss & Master-Slave-Modell
 
 ```
-[Notion DB]  ◀──── Sync ────▶  [Superchat]  ◀──── BSP ────▶  [WhatsApp / Meta]
-      │                              │
-      └──────── Conflict Resolution ─┘
-              (lib/sync, lib/diff)
+                  Initial / Continuous Mirror
+                  ─────────────────────────▶
+[Superchat]                                       [Notion DB autoabgleich]
+ (MASTER)         ◀─────────────────────────       (MIRROR / Distribution)
+                  Push-on-Demand (Phase 2)
+                                                            │
+                                                            ▼
+                                                   [Kunden-Workspaces
+                                                    (dupliziert/geshart)]
 ```
+
+**Superchat ist die Wahrheit.** Notion spiegelt nur, ist aber das Format, in dem die
+Vorlagen-Datenbank an Kunden ausgeliefert wird. Kunden ändern in ihrer Notion-Kopie und
+sollen perspektivisch per Knopfdruck nach Superchat zurückspielen können.
+
+### Phasen
+
+| Phase | Richtung | Zweck | Status |
+|-------|----------|-------|--------|
+| **1** | Superchat → Notion | Initial Import + kontinuierlicher Mirror — Notion bleibt aktuell | geplant |
+| **2** | Notion → Superchat | „Knopfdruck"-Push — Kunden spielen ihre Notion-Änderungen zurück | später |
+| **3** | bidirektional / konfliktbehandelnd | Optional, wenn beide Richtungen produktiv genutzt werden | offen |
 
 Superchat ist der **BSP (Business Solution Provider)** und kapselt die WhatsApp Business API
 (Template-Erstellung, Genehmigungs-Status, Versand, Inbox). Wir sprechen nie direkt mit Meta —
 immer nur mit der Superchat-API.
 
-[Detailliert beschreiben, sobald Implementierung beginnt.]
+### Geschäfts-Kontext
+
+Heute manueller Service (500,01 € / Kunde, Mensch sitzt und überträgt). Nach Phase 2 ist die
+Übertragung selbstbedienbar — die 500 € werden Produktmarge statt Service-Stunden.
 
 ## Superchat-Templates-API
 
@@ -97,18 +117,19 @@ immer nur mit der Superchat-API.
 }
 ```
 
-### Wichtig für Notion-Sync
+### Sync-Mapping (beide Richtungen)
 
-Notion `Vorlagentext` enthält statische Texte mit Platzhaltern wie `{{1}}`, `{{2}}`. Superchat-Schema erwartet **identisches** Variable-Format ({{n}}-Numerik) plus separate `variables[]`-Array mit `display_name`. Beim Sync also:
-
-| Notion → Superchat | Mapping |
-|---|---|
-| `Name` (title) | `name` |
-| `Vorlagentext` | `content.body` (Variablen `{{n}}` bleiben wie sie sind) |
-| `Anhang` | `content.file_ids` (vorher Upload) |
-| Variablen-Erkennung | `content.variables[]` aus `{{n}}`-Pattern erstellen |
-| `Ordner` | `folder` (Lookup oder Create) |
-| `Kategorie` | (nicht direkt in Superchat — entscheidet Meta-Kategorie beim Submission) |
+| Superchat-Feld | Notion-Feld | Anmerkung |
+|---|---|---|
+| `name` | `Name` (title) | 1:1 |
+| `content.body` | `Vorlagentext` | `{{n}}`-Variablen bleiben wörtlich |
+| `content.file_ids[]` | `Anhang` (file) | Notion-Files via Notion-Upload-API; Superchat-Files via Upload-Endpoint |
+| `content.variables[]` | (rekonstruiert aus `{{n}}` im Body) | Notion speichert keine separate Variable-Definition; Mapping per Position-Index |
+| `folder.name` | `Ordner` (select) | Folder-Optionen 1:1; Anlage in Superchat falls fehlend |
+| `status` | (Meta-Info, kein Notion-Feld) | nur lesend ins Notion gespiegelt |
+| (Meta-Kategorie) | `Kategorie` | bei Phase-2-Push übergibt Notion `Verwaltung`/`Marketing` an Submission |
+| `channels[]` | (kein Notion-Feld) | Phase 1: ignorieren; Phase 2: aus Inbox-Default ableiten |
+| (n/a) | `Überschrift`, `Fusszeile`, `Button*`, `URL's`, `Telefonnummer`, `Notizen`, `Schnellantwort`, `Vorschaubild` | reine Notion-Distribution-Felder, optional mappen wenn Superchat-Components ergänzt werden |
 
 ## Externe Abhängigkeiten
 
@@ -116,6 +137,6 @@ Notion `Vorlagentext` enthält statische Texte mit Platzhaltern wie `{{1}}`, `{{
 |---------|-------|------|
 | Linear | Issue Tracking | API Key (.env: `LINEAR_API_KEY`) |
 | GitHub | Code Repository | SSH/HTTPS |
-| Notion | Datenbank für Vorlagen (SSoT der Inhalte) | Integration Token (.env: `NOTION_TOKEN`, `NOTION_DATABASE_ID`) |
+| Notion | Mirror der Vorlagen — wird an Kunden ausgeliefert | Integration Token (.env: `NOTION_TOKEN`, `NOTION_DATABASE_ID`) |
 | Superchat | BSP für WhatsApp Business — Template-Verwaltung + Versand + Inbox | `X-API-Key: $SUPERCHAT_API_KEY` Header gegen Base `https://api.superchat.com/v1.0` |
 | Obsidian Vault | Doku-Spiegel | Filesystem |

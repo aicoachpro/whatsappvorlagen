@@ -5,7 +5,7 @@
 
 ## Identität
 
-Synchronisation WhatsApp-Vorlagen mit Notion. Hält Vorlagen-Bestand zwischen WhatsApp Business API und einer Notion-Datenbank synchron, sodass Änderungen in Notion automatisch in WhatsApp ankommen und umgekehrt.
+Synchronisation WhatsApp-Vorlagen mit Notion. **Superchat ist Master**, Notion ist die Auslieferungs-Mirror-DB für Kunden. Phase 1: Read-only Mirror Superchat → Notion. Phase 2: Knopfdruck-Push Notion → Superchat (löst manuellen 500-€-Service ab).
 
 ## Meine Fähigkeiten
 
