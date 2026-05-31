@@ -1,5 +1,16 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## v1.0.0 — 2026-06-01
+
+### VPS-Plattform (Notion-Ablösung) — Phase 1 + 2 (VOE-237, VOE-238)
+- Architektur-Konzept `specs/VPS_PLATTFORM_KONZEPT.md` v0.2.0 — Tenancy-Modell A (Master-Katalog ⊕ Kunden-Overlay), Stack PocketBase/Docker/Traefik
+- **Phase 1:** PocketBase-Instanz live unter `vorlagen.voelkergroup.cloud` (Docker + Traefik, Let's-Encrypt-TLS), DNS-A-Record angelegt
+- **Phase 2:** `sync-superchat-to-pb.js` — 269 Templates + 262 Vorschaubilder nach PocketBase (Upsert nur Superchat-Felder)
+- **Phase 2:** `notion-enrich-to-pb.js` — einmaliger Notion-Export: 174 Records mit Anreicherung (Kategorie/Ordner/Buttons/…) migriert, Match per `superchat_id`
+- Notion bleibt im Parallelbetrieb bis Phase 6
+- npm-Scripts: `sync:pb`, `enrich:pb`, `sync:notion`
+- Linear-Roadmap VOE-236…242 angelegt
+
 ## v1.0.0 — 2026-05-04
 
 ### Initial Setup
