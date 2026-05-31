@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>WhatsApp-Vorlagen</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Login -->
+  <main id="login" class="login hidden">
+    <form id="login-form" class="login-card">
+      <div class="brand"><span class="brand-mark">💬</span> WhatsApp-Vorlagen</div>
+      <p class="login-sub">Bitte mit deinem Kundenzugang anmelden.</p>
+      <label>E-Mail<input type="email" id="email" autocomplete="username" required></label>
+      <label>Passwort<input type="password" id="password" autocomplete="current-password" required></label>
+      <button type="submit" id="login-btn">Anmelden</button>
+      <div id="login-error" class="error hidden"></div>
+    </form>
+  </main>
+
+  <!-- App -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">💬</span> WhatsApp-Vorlagen</div>
+      <div class="topbar-right">
+        <input type="search" id="search" placeholder="Suchen…" autocomplete="off">
+        <span id="who" class="who"></span>
+        <button id="logout" class="ghost">Abmelden</button>
+      </div>
+    </header>
+    <nav id="filters" class="filters"></nav>
+    <main id="gallery" class="gallery"></main>
+    <div id="empty" class="empty hidden">Keine Vorlagen gefunden.</div>
+  </div>
+
+  <!-- Detail / Edit -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <button id="modal-close" class="modal-close" aria-label="Schließen">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
