@@ -11,6 +11,8 @@
     "sync:notion": "node agents/sync-superchat-to-notion.js",
     "sync:pb": "node agents/sync-superchat-to-pb.js",
     "enrich:pb": "node agents/notion-enrich-to-pb.js",
+    "setup:tenancy": "node agents/setup-pb-tenancy.js",
+    "test:tenancy": "node tests/tenant-isolation.js",
     "self-healing": "node agents/self-healing.js"
   },
   "engines": {

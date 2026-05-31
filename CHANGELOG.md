@@ -11,6 +11,13 @@
 - npm-Scripts: `sync:pb`, `enrich:pb`, `sync:notion`
 - Linear-Roadmap VOE-236…242 angelegt
 
+### Datenqualität + Phase 4 (VOE-240)
+- `fill-ordner-from-superchat.js` — Ordner aus Superchat-`folder` ergänzt (174→264/269)
+- `derive-kategorie-from-ordner.js` — Kategorie-Heuristik aus Ordner (169→264/269; Marketing 164 / Verwaltung 100)
+- **Phase 4:** `setup-pb-tenancy.js` — Multi-Tenant-Unterbau: Collections `tenants`, `template_overlays` (Tenant-Scoping-Rules), `users` um `tenant`/`role` erweitert, `templates`-Rules (read=auth, write=admin)
+- `tests/tenant-isolation.js` — Cross-Tenant-Sicherheitstest, 8/8 PASS (Mandantentrennung bestätigt)
+- npm-Scripts: `setup:tenancy`, `test:tenancy`
+
 ## v1.0.0 — 2026-05-04
 
 ### Initial Setup
