@@ -162,7 +162,11 @@ async function findBySuperchatId(scId) {
   return j.items && j.items[0] ? j.items[0] : null;
 }
 
-// ─── Mapping: NUR Superchat-Felder ──────────────────────────────────────────
+// ─── Mapping: Superchat-Felder (Superchat = Master) ──────────────────────────
+// content.category → deutsches Kategorie-Label
+function mapKategorie(cat) {
+  return ({ marketing: 'Marketing', utility: 'Verwaltung', authentication: 'Authentifizierung' })[cat] || '';
+}
 function buildScFields(t) {
   const c = t.content || {};
   return {
@@ -173,6 +177,14 @@ function buildScFields(t) {
     footer:            c.footer || '',
     variables:         c.variables || [],
     superchat_updated: t.updatedAt || t.createdAt || '',
+    // ── echte Superchat-Komponenten (VOE-243) ──
+    kategorie:         mapKategorie(c.category),
+    sc_category:       c.category || '',
+    ordner:            t.folder?.name || '',
+    buttons:           c.buttons || [],
+    header:            c.header || null,
+    channels:          (t.channels || []).map(ch => ch.name),
+    track_links:       !!c.track_links,
   };
 }
 

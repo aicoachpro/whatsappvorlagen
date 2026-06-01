@@ -34,7 +34,6 @@ async function login(email, password) {
   await boot();
 }
 function logout() { store.token = null; store.user = null; show('login'); }
-
 function show(view) {
   $('#login').classList.toggle('hidden', view !== 'login');
   $('#app').classList.toggle('hidden', view !== 'app');
@@ -52,7 +51,6 @@ async function loadData() {
   for (const o of ovs.items) if (o.template) STATE.overlays[o.template] = o;
   STATE.fileToken = ft.token || '';
 }
-
 function fileURL(t) {
   if (!t.vorschaubild) return null;
   const q = STATE.fileToken ? `?token=${STATE.fileToken}` : '';
@@ -64,18 +62,51 @@ function effective(t) {
   const o = STATE.overlays[t.id];
   return {
     ...t,
-    name:         o?.name_override   || t.name,
-    body:         o?.body_override   || t.body,
-    ueberschrift: o?.header_override || t.ueberschrift,
-    footer:       o?.footer_override || t.footer,
-    hidden:       !!o?.hidden,
+    name:    o?.name_override   || t.name,
+    body:    o?.body_override   || t.body,
+    footer:  o?.footer_override || t.footer,
+    header:  t.header || null,          // Superchat-Header (json)
+    buttons: t.buttons || [],           // Superchat-Buttons (json)
+    variables: t.variables || [],
+    hidden:  !!o?.hidden,
     _ov: o || null,
   };
 }
 
-/* ─── Rendering ────────────────────────────────────────────────────────── */
+/* ─── WhatsApp-Komponenten rendern ─────────────────────────────────────── */
+// Body mit benannten Variablen-Chips ({{1}} → "Vorname")
+function bodyHtml(body, vars) {
+  let s = esc(body || '');
+  for (const v of (vars || [])) {
+    const chip = `<span class="var">${esc(v.display_name || ('Variable ' + v.position))}</span>`;
+    s = s.split(`{{${v.position}}}`).join(chip);
+  }
+  return s.replace(/\n/g, '<br>');
+}
+function headerHtml(h) {
+  if (!h) return '';
+  if (h.type === 'text') return `<div class="wa-hdr">${esc(h.value || '')}</div>`;
+  const ic = h.type === 'image' ? '🖼️' : h.type === 'video' ? '🎬' : h.type === 'document' ? '📄' : '📎';
+  return `<div class="wa-hdr-media">${ic} ${esc(h.type)}-Header</div>`;
+}
+const BTN_ICON = { quick_reply: '↩︎', static_url: '🔗', dynamic_url: '🔗', phone_number: '📞' };
+function buttonsHtml(buttons) {
+  if (!buttons || !buttons.length) return '';
+  return `<div class="wa-buttons">${buttons.map(b =>
+    `<div class="wa-btn">${BTN_ICON[b.type] || '•'} ${esc(b.title || '')}</div>`).join('')}</div>`;
+}
+// vollständige WhatsApp-Vorschau-Bubble
+function bubbleHtml(t) {
+  return `<div class="wa-bubble">
+    ${headerHtml(t.header)}
+    <div class="wa-body">${bodyHtml(t.body, t.variables) || '<span class="placeholder">(kein Text)</span>'}</div>
+    ${t.footer ? `<div class="wa-ftr">${esc(t.footer)}</div>` : ''}
+  </div>${buttonsHtml(t.buttons)}`;
+}
+
+/* ─── Galerie ──────────────────────────────────────────────────────────── */
 function render() {
-  const who = store.user; $('#who').textContent = who?.email || '';
+  $('#who').textContent = store.user?.email || '';
   const cats = ['Alle', ...new Set(STATE.templates.map(t => t.ordner).filter(Boolean))].slice(0, 40);
   $('#filters').innerHTML = cats.map(c =>
     `<button class="chip ${c === STATE.filter ? 'active' : ''}" data-f="${esc(c)}">${esc(c)}</button>`).join('');
@@ -86,31 +117,30 @@ function render() {
     if (q && !(`${t.name} ${t.body} ${t.ordner}`.toLowerCase().includes(q))) return false;
     return true;
   });
-
   $('#empty').classList.toggle('hidden', items.length > 0);
 
-  // gruppiert nach Ordner
   const groups = {};
   for (const t of items) (groups[t.ordner || 'Ohne Ordner'] ||= []).push(t);
-  const html = Object.keys(groups).sort().map(g => `
-    <div class="group-title">${esc(g)}</div>
-    ${groups[g].map(card).join('')}`).join('');
-  $('#gallery').innerHTML = html;
+  $('#gallery').innerHTML = Object.keys(groups).sort().map(g =>
+    `<div class="group-title">${esc(g)}</div>${groups[g].map(card).join('')}`).join('');
 }
 
 function card(t) {
   const img = fileURL(t);
   const cover = img ? `<img src="${img}" loading="lazy" alt="">` : `<span class="noimg">💬</span>`;
   const katBadge = t.kategorie === 'Marketing' ? `<span class="badge mk">Marketing</span>`
-                 : t.kategorie === 'Verwaltung' ? `<span class="badge vw">Verwaltung</span>` : '';
+                 : t.kategorie === 'Verwaltung' ? `<span class="badge vw">Verwaltung</span>`
+                 : t.kategorie === 'Authentifizierung' ? `<span class="badge au">Authentifizierung</span>` : '';
+  const nBtn = (t.buttons || []).length;
+  const btnBadge = nBtn ? `<span class="badge btn-b">${nBtn} Button${nBtn > 1 ? 's' : ''}</span>` : '';
   const edited = t._ov ? `<span class="badge edited">bearbeitet</span>` : '';
   const hidden = t.hidden ? `<span class="badge hidden-b">ausgeblendet</span>` : '';
   return `<article class="card" data-id="${t.id}">
     <div class="card-cover">${cover}</div>
     <div class="card-body">
       <div class="card-name">${esc(t.name)}</div>
-      <div class="card-text">${esc((t.body || '').slice(0, 120))}</div>
-      <div class="badges">${katBadge}${edited}${hidden}</div>
+      <div class="card-text">${bodyHtml((t.body || '').slice(0, 120), t.variables)}</div>
+      <div class="badges">${katBadge}${btnBadge}${edited}${hidden}</div>
     </div></article>`;
 }
 
@@ -119,20 +149,21 @@ function openModal(id) {
   const base = STATE.templates.find(t => t.id === id);
   const t = effective(base);
   const ov = t._ov || {};
+  const chans = (base.channels || []).join(', ');
   $('#modal-body').innerHTML = `
     <h2>${esc(t.name)}</h2>
-    <p class="sub">${esc(t.ordner || '')} ${t.kategorie ? '· ' + esc(t.kategorie) : ''}</p>
-    <div class="preview">
-      ${t.ueberschrift ? `<div class="hdr">${esc(t.ueberschrift)}</div>` : ''}
-      ${esc(t.body) || '<span class="placeholder">(kein Text)</span>'}
-      ${t.footer ? `<div class="ftr">${esc(t.footer)}</div>` : ''}
-    </div>
+    <p class="sub">${esc(t.ordner || '')}${t.kategorie ? ' · ' + esc(t.kategorie) : ''}${chans ? ' · ' + esc(chans) : ''}</p>
+    <div class="preview">${bubbleHtml(t)}</div>
+    ${base.buttons && base.buttons.length ? `<div class="btn-list">
+      <h3>Buttons der Vorlage</h3>
+      ${base.buttons.map((b, i) => `<div class="btn-row"><span class="btn-pos">${i + 1}</span>
+        <span class="btn-type">${esc(b.type)}</span><span class="btn-label">${esc(b.title || '')}</span>
+        ${b.target ? `<span class="btn-target">${esc(b.target)}</span>` : ''}</div>`).join('')}
+    </div>` : ''}
     <div class="edit">
       <h3>Deine Anpassungen</h3>
       <label>Eigener Text (überschreibt Vorlagentext)
         <textarea id="f-body" placeholder="${esc((base.body || '').slice(0, 80))}…">${esc(ov.body_override || '')}</textarea></label>
-      <label>Eigene Überschrift
-        <input type="text" id="f-header" value="${esc(ov.header_override || '')}" placeholder="${esc(base.ueberschrift || '')}"></label>
       <label>Eigene Fußzeile
         <input type="text" id="f-footer" value="${esc(ov.footer_override || '')}" placeholder="${esc(base.footer || '')}"></label>
       <label>Notizen
@@ -152,7 +183,6 @@ function closeModal() { $('#modal').classList.add('hidden'); }
 async function saveOverlay(templateId) {
   const data = {
     body_override:   $('#f-body').value.trim(),
-    header_override: $('#f-header').value.trim(),
     footer_override: $('#f-footer').value.trim(),
     notes:           $('#f-notes').value.trim(),
     hidden:          $('#f-hidden').checked,
@@ -176,11 +206,7 @@ async function resetOverlay(templateId) {
 }
 
 /* ─── Boot ─────────────────────────────────────────────────────────────── */
-async function boot() {
-  show('app');
-  await loadData();
-  render();
-}
+async function boot() { show('app'); await loadData(); render(); }
 
 document.addEventListener('click', (e) => {
   const card = e.target.closest('.card'); if (card) return openModal(card.dataset.id);
@@ -191,7 +217,7 @@ $('#login-form').addEventListener('submit', async (e) => {
   const err = $('#login-error'); err.classList.add('hidden');
   const btn = $('#login-btn'); btn.disabled = true; btn.textContent = 'Anmelden…';
   try { await login($('#email').value.trim(), $('#password').value); }
-  catch (ex) { err.textContent = 'Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.'; err.classList.remove('hidden'); }
+  catch { err.textContent = 'Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.'; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.textContent = 'Anmelden'; }
 });
 $('#logout').addEventListener('click', logout);
