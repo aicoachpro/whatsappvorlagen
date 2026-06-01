@@ -266,16 +266,20 @@ async function createCustomer(e) {
   const name = $('#c-name').value.trim(), email = $('#c-email').value.trim(), pass = $('#c-pass').value.trim();
   const msg = $('#c-msg'), btn = $('#c-save');
   msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Legt an…';
+  let tenant = null;
   try {
     // 1) Mandant
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
-    const tenant = await api('POST', '/api/collections/tenants/records', { name, slug, status: 'active' });
-    // 2) Kunde (immer role=customer)
-    await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', verified: true });
+    tenant = await api('POST', '/api/collections/tenants/records', { name, slug, status: 'active' });
+    // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
+    //    unbestätigte Kunden dürfen sich trotzdem einloggen (authRule der users-Collection ist leer).
+    await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
     msg.className = 'ok-msg'; msg.textContent = `✓ Kunde angelegt: ${email} / Passwort: ${pass}`;
     $('#c-name').value = ''; $('#c-email').value = ''; $('#c-pass').value = genPass();
     openAdmin();
   } catch (ex) {
+    // Rollback: eben angelegten Mandant wieder entfernen, damit nichts verwaist
+    if (tenant) await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
     msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
   } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
 }
