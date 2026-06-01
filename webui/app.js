@@ -209,8 +209,98 @@ async function resetOverlay(templateId) {
   closeModal(); render();
 }
 
+/* ─── Admin: Kundenverwaltung (nur role=admin) ─────────────────────────── */
+const isAdmin = () => store.user?.role === 'admin';
+const genPass = () => 'K' + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 5).toUpperCase() + '7!';
+
+async function openAdmin() {
+  $('#admin').classList.remove('hidden');
+  $('#admin-body').innerHTML = '<p class="sub">lädt…</p>';
+  try {
+    const [tenants, users] = await Promise.all([
+      api('GET', '/api/collections/tenants/records?perPage=500&sort=name'),
+      api('GET', '/api/collections/users/records?perPage=500'),
+    ]);
+    const tById = Object.fromEntries(tenants.items.map(t => [t.id, t]));
+    const customers = users.items.filter(u => u.role !== 'admin');
+    renderAdmin(customers, tById);
+  } catch (e) { $('#admin-body').innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
+}
+function renderAdmin(customers, tById) {
+  $('#admin-body').innerHTML = `
+    <h2>Kunden verwalten</h2>
+    <p class="sub">${customers.length} Kunde(n)</p>
+    <form id="cust-form" class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
+      <h3>Neuen Kunden anlegen</h3>
+      <label>Firma / Mandant<input type="text" id="c-name" required placeholder="z. B. Muster GmbH"></label>
+      <label>E-Mail (Login)<input type="email" id="c-email" required placeholder="kunde@firma.de"></label>
+      <label>Passwort<input type="text" id="c-pass" required></label>
+      <div class="actions"><button type="submit" class="btn-save" id="c-save">Kunde anlegen</button>
+        <button type="button" class="btn-reset" id="c-gen">Passwort neu</button></div>
+      <div id="c-msg" class="hidden"></div>
+    </form>
+    <h3>Bestehende Kunden</h3>
+    <div class="cust-list">
+      ${customers.length ? customers.map(u => {
+        const t = tById[u.tenant];
+        return `<div class="cust-row" data-uid="${u.id}" data-tid="${u.tenant || ''}">
+          <div><div class="cust-mail">${esc(u.email)}</div>
+            <div class="cust-sub">${esc(t?.name || '— kein Mandant')}${u.verified ? '' : ' · unbestätigt'}</div></div>
+          <div class="cust-act">
+            <button class="mini" data-act="pw">Passwort</button>
+            <button class="mini danger" data-act="del">Löschen</button>
+          </div></div>`;
+      }).join('') : '<p class="placeholder">Noch keine Kunden.</p>'}
+    </div>`;
+  $('#c-pass').value = genPass();
+  $('#c-gen').onclick = () => { $('#c-pass').value = genPass(); };
+  $('#cust-form').onsubmit = createCustomer;
+  $$('.cust-row .mini').forEach(b => b.onclick = (e) => {
+    const row = e.target.closest('.cust-row');
+    if (b.dataset.act === 'pw') resetCustomerPass(row.dataset.uid);
+    else deleteCustomer(row.dataset.uid, row.dataset.tid);
+  });
+}
+async function createCustomer(e) {
+  e.preventDefault();
+  const name = $('#c-name').value.trim(), email = $('#c-email').value.trim(), pass = $('#c-pass').value.trim();
+  const msg = $('#c-msg'), btn = $('#c-save');
+  msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Legt an…';
+  try {
+    // 1) Mandant
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+    const tenant = await api('POST', '/api/collections/tenants/records', { name, slug, status: 'active' });
+    // 2) Kunde (immer role=customer)
+    await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', verified: true });
+    msg.className = 'ok-msg'; msg.textContent = `✓ Kunde angelegt: ${email} / Passwort: ${pass}`;
+    $('#c-name').value = ''; $('#c-email').value = ''; $('#c-pass').value = genPass();
+    openAdmin();
+  } catch (ex) {
+    msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
+  } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
+}
+async function resetCustomerPass(uid) {
+  const np = genPass();
+  if (!confirm('Neues Passwort für diesen Kunden setzen?\n\n' + np + '\n\n(notiere es — wird nur einmal angezeigt)')) return;
+  try { await api('PATCH', `/api/collections/users/records/${uid}`, { password: np, passwordConfirm: np }); alert('Neues Passwort gesetzt:\n\n' + np); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+async function deleteCustomer(uid, tid) {
+  if (!confirm('Diesen Kunden inkl. Mandant und allen Anpassungen löschen?')) return;
+  try {
+    await api('DELETE', `/api/collections/users/records/${uid}`);
+    if (tid) await api('DELETE', `/api/collections/tenants/records/${tid}`).catch(() => {});
+    openAdmin();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+function closeAdmin() { $('#admin').classList.add('hidden'); }
+
 /* ─── Boot ─────────────────────────────────────────────────────────────── */
-async function boot() { show('app'); await loadData(); render(); }
+async function boot() {
+  show('app');
+  $('#admin-btn').classList.toggle('hidden', !isAdmin());
+  await loadData(); render();
+}
 
 document.addEventListener('click', (e) => {
   const card = e.target.closest('.card'); if (card) return openModal(card.dataset.id);
@@ -228,6 +318,9 @@ $('#logout').addEventListener('click', logout);
 $('#modal-close').addEventListener('click', closeModal);
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
 $('#search').addEventListener('input', (e) => { STATE.q = e.target.value; render(); });
+$('#admin-btn').addEventListener('click', openAdmin);
+$('#admin-close').addEventListener('click', closeAdmin);
+$('#admin').addEventListener('click', (e) => { if (e.target.id === 'admin') closeAdmin(); });
 
 (async () => {
   if (store.token) { try { await boot(); return; } catch {} }

@@ -2,6 +2,13 @@
 
 ## v1.0.0 — 2026-06-01
 
+### User-Verwaltung + Infrastruktur (VOE-246, VOE-237)
+- **Kundenverwaltung** (Admin-Onboarding): Admin-Bereich in der Kunden-UI (nur role=admin) — Kunden anlegen (Mandant + Login), Passwort zurücksetzen, löschen; Kundenliste
+- `setup-user-mgmt.js` — PocketBase-Rules: role=admin verwaltet `tenants`/`users`, kein Self-Update (keine role-Eskalation)
+- Admin-Account `thomas@voelker.digital` (role=admin) in der users-Collection
+- **VOE-237:** Server-Config + Backup-/Restore-Doku ins Repo (`deploy/vorlagen/`)
+- Feature-Branches nach `main` zusammengeführt
+
 ### Vorlagen-Komponenten vollständig (VOE-243)
 - Superchat-`content` vollständig erschlossen: echte `category`, `buttons` (Typ/Label/Reihenfolge), `header`, benannte `variables`, `channels`, `track_links`
 - `extend-templates-schema.js` + Sync-Erweiterung: echte Meta-Kategorie ersetzt Heuristik (251 Marketing / 15 Verwaltung)

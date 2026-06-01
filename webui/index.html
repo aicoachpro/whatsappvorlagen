@@ -26,6 +26,7 @@
       <div class="brand"><span class="brand-mark">💬</span> WhatsApp-Vorlagen</div>
       <div class="topbar-right">
         <input type="search" id="search" placeholder="Suchen…" autocomplete="off">
+        <button id="admin-btn" class="ghost hidden">👤 Kunden</button>
         <span id="who" class="who"></span>
         <button id="logout" class="ghost">Abmelden</button>
       </div>
@@ -40,6 +41,14 @@
     <div class="modal-card">
       <button id="modal-close" class="modal-close" aria-label="Schließen">×</button>
       <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Admin: Kundenverwaltung -->
+  <div id="admin" class="modal hidden">
+    <div class="modal-card">
+      <button id="admin-close" class="modal-close" aria-label="Schließen">×</button>
+      <div id="admin-body"></div>
     </div>
   </div>
 

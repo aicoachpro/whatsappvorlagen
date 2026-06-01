@@ -1,0 +1,24 @@
+# PocketBase-Instanz der Vorlagen-Plattform (VOE-237)
+# Liegt auf srv1537054 (187.124.165.1) unter /root/vorlagen/docker-compose.yml
+# Reverse-Proxy: vorhandenes Traefik (Netzwerk root_default, certresolver mytlschallenge)
+# Datastore: /opt/vorlagen-pb  (enthält pocketbase-Binary v0.37.5, pb_data, pb_public)
+services:
+  vorlagen-pb:
+    image: alpine:latest
+    container_name: vorlagen-pb
+    restart: unless-stopped
+    working_dir: /pb
+    volumes:
+      - /opt/vorlagen-pb:/pb
+    command: ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090"]
+    networks: [root_default]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
+      - "traefik.http.routers.vorlagen.rule=Host(`vorlagen.voelkergroup.cloud`)"
+      - "traefik.http.routers.vorlagen.entrypoints=websecure"
+      - "traefik.http.routers.vorlagen.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.vorlagen.loadbalancer.server.port=8090"
+networks:
+  root_default:
+    external: true

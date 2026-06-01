@@ -94,4 +94,16 @@ button{cursor:pointer;font:inherit}
 .btn-reset{background:#eef1f3;color:var(--muted)}
 .placeholder{color:#9aa6ad;font-size:12px}
 .empty{text-align:center;color:var(--muted);padding:60px 20px}
+
+/* Kundenverwaltung */
+.ok-msg{background:#dcf8c6;color:#1a7a3a;padding:10px;border-radius:8px;font-size:13px}
+.cust-list{display:flex;flex-direction:column;gap:8px}
+.cust-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:9px}
+.cust-mail{font-weight:600;font-size:14px}
+.cust-sub{color:var(--muted);font-size:12px}
+.cust-act{display:flex;gap:6px;flex:none}
+.mini{background:#eef1f3;color:var(--ink);border:0;padding:7px 12px;border-radius:7px;font-size:13px}
+.mini:hover{background:#e2e7ea}
+.mini.danger{background:#fbeaea;color:#b42318}
+.mini.danger:hover{background:#f6d9d9}
 @media(max-width:520px){#search{width:120px}.who{display:none}}
