@@ -1,0 +1,35 @@
+{
+  "environment": "mac",
+  "tools_available": {
+    "eslint": false,
+    "semgrep": false,
+    "test_framework": "node",
+    "sonarqube_cloud": false,
+    "puppeteer": true,
+    "gh_cli": true
+  },
+  "paths": {
+    "journal": "journal/",
+    "reports": "journal/",
+    "specs": "specs/",
+    "deploy": "deploy/vorlagen/"
+  },
+  "backlog": {
+    "adapter": "linear",
+    "team": "Voelker AI Solutions",
+    "issue_prefix": "VOE-",
+    "project_label": "wavs"
+  },
+  "metadata": {
+    "created_at": "2026-06-01",
+    "bootstrap_version": "3.0.0-upgrade",
+    "framework": "INTENTRON (Kern-Upgrade von OpenCLAW v1.0.0)",
+    "governance_mode": "lite",
+    "runtime_target": "claude-code",
+    "execution_isolation": "none",
+    "stack": "node-javascript",
+    "deployment_scenario": "solo-vps",
+    "deploy_method": "git-push → server-cron-pull (read-only deploy key)",
+    "live_url": "https://vorlagen.voelkergroup.cloud/"
+  }
+}
