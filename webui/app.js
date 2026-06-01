@@ -83,13 +83,17 @@ function bodyHtml(body, vars) {
   }
   return s.replace(/\n/g, '<br>');
 }
+// deutsche Bezeichnungen wie im Superchat-Editor (für 1:1-Übertragung)
+const HEADER_LABEL = { text: 'Text', image: 'Bild', video: 'Video', document: 'PDF' };
 function headerHtml(h) {
   if (!h) return '';
   if (h.type === 'text') return `<div class="wa-hdr">${esc(h.value || '')}</div>`;
   const ic = h.type === 'image' ? '🖼️' : h.type === 'video' ? '🎬' : h.type === 'document' ? '📄' : '📎';
-  return `<div class="wa-hdr-media">${ic} ${esc(h.type)}-Header</div>`;
+  return `<div class="wa-hdr-media">${ic} ${esc(HEADER_LABEL[h.type] || h.type)}</div>`;
 }
-const BTN_ICON = { quick_reply: '↩︎', static_url: '🔗', dynamic_url: '🔗', phone_number: '📞' };
+const BTN_ICON  = { quick_reply: '↩︎', static_url: '🔗', dynamic_url: '🔗', phone_number: '📞' };
+const BTN_LABEL = { quick_reply: 'Schnellantwort', static_url: 'Statische URL', dynamic_url: 'Dynamische URL', phone_number: 'Telefonnummer' };
+const btnTypeLabel = (t) => BTN_LABEL[t] || t;
 function buttonsHtml(buttons) {
   if (!buttons || !buttons.length) return '';
   return `<div class="wa-buttons">${buttons.map(b =>
@@ -157,7 +161,7 @@ function openModal(id) {
     ${base.buttons && base.buttons.length ? `<div class="btn-list">
       <h3>Buttons der Vorlage</h3>
       ${base.buttons.map((b, i) => `<div class="btn-row"><span class="btn-pos">${i + 1}</span>
-        <span class="btn-type">${esc(b.type)}</span><span class="btn-label">${esc(b.title || '')}</span>
+        <span class="btn-type">${esc(btnTypeLabel(b.type))}</span><span class="btn-label">${esc(b.title || '')}</span>
         ${b.target ? `<span class="btn-target">${esc(b.target)}</span>` : ''}</div>`).join('')}
     </div>` : ''}
     <div class="edit">
