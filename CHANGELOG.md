@@ -2,6 +2,12 @@
 
 ## v1.0.0 — 2026-06-01
 
+### Vorlagen-Komponenten vollständig (VOE-243)
+- Superchat-`content` vollständig erschlossen: echte `category`, `buttons` (Typ/Label/Reihenfolge), `header`, benannte `variables`, `channels`, `track_links`
+- `extend-templates-schema.js` + Sync-Erweiterung: echte Meta-Kategorie ersetzt Heuristik (251 Marketing / 15 Verwaltung)
+- Kunden-UI: WhatsApp-Vorschau mit **Buttons als Knöpfe**, **Variablen-Chips**, Header-Typen; Button-Liste im Detail; Kategorie-/Button-Badges in der Galerie
+- Deploy nach `pb_public` (über Server-Terminal, da SSH-IP temporär netzseitig gesperrt)
+
 ### VPS-Plattform (Notion-Ablösung) — Phase 1 + 2 (VOE-237, VOE-238)
 - Architektur-Konzept `specs/VPS_PLATTFORM_KONZEPT.md` v0.2.0 — Tenancy-Modell A (Master-Katalog ⊕ Kunden-Overlay), Stack PocketBase/Docker/Traefik
 - **Phase 1:** PocketBase-Instanz live unter `vorlagen.voelkergroup.cloud` (Docker + Traefik, Let's-Encrypt-TLS), DNS-A-Record angelegt
