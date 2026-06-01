@@ -164,6 +164,13 @@ function openModal(id) {
         <span class="btn-type">${esc(btnTypeLabel(b.type))}</span><span class="btn-label">${esc(b.title || '')}</span>
         ${b.target ? `<span class="btn-target">${esc(b.target)}</span>` : ''}</div>`).join('')}
     </div>` : ''}
+    <div class="copy-block">
+      <h3>📋 Zum Nachbauen in Superchat</h3>
+      ${base.variables && base.variables.length ? `<div class="var-legend">Variablen:&nbsp; ${base.variables.map(v => `<span class="var">{{${v.position}}}</span>&nbsp;=&nbsp;${esc(v.display_name || '')}`).join('&nbsp;·&nbsp;')}</div>` : ''}
+      <button class="copy-row" id="copy-body">📋 Vorlagentext kopieren</button>
+      ${base.footer ? `<button class="copy-row" id="copy-footer">📋 Fußzeile kopieren</button>` : ''}
+      ${(base.buttons || []).map((b, i) => `<button class="copy-row" data-cb="${i}">📋 Button ${i + 1}: „${esc(b.title || '')}"</button>`).join('')}
+    </div>
     <div class="edit">
       <h3>Deine Anpassungen</h3>
       <label>Eigener Text (überschreibt Vorlagentext)
@@ -181,6 +188,14 @@ function openModal(id) {
   $('#modal').classList.remove('hidden');
   $('#f-save').onclick = () => saveOverlay(base.id);
   if ($('#f-reset')) $('#f-reset').onclick = () => resetOverlay(base.id);
+  if ($('#copy-body')) $('#copy-body').onclick = () => copyText(base.body, $('#copy-body'), '📋 Vorlagentext kopieren');
+  if ($('#copy-footer')) $('#copy-footer').onclick = () => copyText(base.footer, $('#copy-footer'), '📋 Fußzeile kopieren');
+  $$('[data-cb]').forEach(el => el.onclick = () => copyText((base.buttons[+el.dataset.cb] || {}).title, el, el.textContent));
+}
+async function copyText(text, btnEl, restore) {
+  try { await navigator.clipboard.writeText(text || ''); }
+  catch { const ta = document.createElement('textarea'); ta.value = text || ''; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.focus(); ta.select(); try { document.execCommand('copy'); } catch {} ta.remove(); }
+  if (btnEl) { btnEl.textContent = '✓ kopiert'; btnEl.classList.add('copied'); setTimeout(() => { btnEl.textContent = restore; btnEl.classList.remove('copied'); }, 1300); }
 }
 function closeModal() { $('#modal').classList.add('hidden'); }
 
@@ -274,9 +289,13 @@ async function createCustomer(e) {
     // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
     //    unbestätigte Kunden dürfen sich trotzdem einloggen (authRule der users-Collection ist leer).
     await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
-    msg.className = 'ok-msg'; msg.textContent = `✓ Kunde angelegt: ${email} / Passwort: ${pass}`;
+    msg.className = 'ok-msg';
+    msg.innerHTML = `✓ Kunde <b>${esc(email)}</b> angelegt.<br>Passwort: <code>${esc(pass)}</code>
+      <button type="button" class="copy-row" id="copy-cred" style="margin-top:6px">📋 Zugangsdaten kopieren</button>
+      <br><small>Jetzt notieren/kopieren und an den Kunden geben — danach nicht mehr abrufbar.</small>`;
+    $('#copy-cred').onclick = () => copyText(`WhatsApp-Vorlagen\nLogin: ${location.origin}/\nE-Mail: ${email}\nPasswort: ${pass}`, $('#copy-cred'), '📋 Zugangsdaten kopieren');
     $('#c-name').value = ''; $('#c-email').value = ''; $('#c-pass').value = genPass();
-    openAdmin();
+    // Liste nicht sofort neu rendern (würde die Zugangsdaten-Anzeige überschreiben)
   } catch (ex) {
     // Rollback: eben angelegten Mandant wieder entfernen, damit nichts verwaist
     if (tenant) await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
@@ -284,10 +303,13 @@ async function createCustomer(e) {
   } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
 }
 async function resetCustomerPass(uid) {
+  if (!confirm('Neues Passwort für diesen Kunden erzeugen?')) return;
   const np = genPass();
-  if (!confirm('Neues Passwort für diesen Kunden setzen?\n\n' + np + '\n\n(notiere es — wird nur einmal angezeigt)')) return;
-  try { await api('PATCH', `/api/collections/users/records/${uid}`, { password: np, passwordConfirm: np }); alert('Neues Passwort gesetzt:\n\n' + np); }
-  catch (e) { alert('Fehler: ' + e.message); }
+  try {
+    await api('PATCH', `/api/collections/users/records/${uid}`, { password: np, passwordConfirm: np });
+    await copyText(np, null);
+    alert('Neues Passwort gesetzt und in die Zwischenablage kopiert:\n\n' + np + '\n\nJetzt an den Kunden geben.');
+  } catch (e) { alert('Fehler: ' + e.message); }
 }
 async function deleteCustomer(uid, tid) {
   if (!confirm('Diesen Kunden inkl. Mandant und allen Anpassungen löschen?')) return;
