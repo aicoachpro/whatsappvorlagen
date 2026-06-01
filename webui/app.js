@@ -50,6 +50,22 @@ async function loadData() {
   STATE.overlays = {};
   for (const o of ovs.items) if (o.template) STATE.overlays[o.template] = o;
   STATE.fileToken = ft.token || '';
+  // Eigenen Mandanten laden (Firma + Link-Ersetzungen für Personalisierung)
+  STATE.tenant = store.user?.tenant
+    ? await api('GET', `/api/collections/tenants/records/${store.user.tenant}`).catch(() => null)
+    : null;
+}
+
+/* ─── Personalisierung: Master-Vorlage → Kundendaten (Firma + Links) ──────── */
+const FIRMA_RE = /V[öÖ]LKER\s+Finance\s+OHG/gi;
+function personalize(text) {
+  if (!text || !STATE.tenant) return text || '';
+  let s = text;
+  if (STATE.tenant.firma) s = s.replace(FIRMA_RE, STATE.tenant.firma);
+  for (const e of (STATE.tenant.ersetzungen || [])) {
+    if (e && e.from) s = s.split(e.from).join(e.to || '');
+  }
+  return s;
 }
 function fileURL(t) {
   if (!t.vorschaubild) return null;
@@ -65,13 +81,15 @@ function headerMediaURL(t) {
 /* ─── Merge Master ⊕ Overlay ───────────────────────────────────────────── */
 function effective(t) {
   const o = STATE.overlays[t.id];
+  const header = t.header ? { ...t.header, value: personalize(t.header.value) } : null;
+  const buttons = (t.buttons || []).map(b => b.target ? { ...b, target: personalize(b.target) } : b);
   return {
     ...t,
     name:    o?.name_override   || t.name,
-    body:    o?.body_override   || t.body,
-    footer:  o?.footer_override || t.footer,
-    header:  t.header || null,          // Superchat-Header (json)
-    buttons: t.buttons || [],           // Superchat-Buttons (json)
+    body:    personalize(o?.body_override   || t.body),
+    footer:  personalize(o?.footer_override || t.footer),
+    header,                              // Superchat-Header (json, personalisiert)
+    buttons,                             // Superchat-Buttons (json, Links personalisiert)
     variables: t.variables || [],
     hidden:  !!o?.hidden,
     _ov: o || null,
@@ -172,14 +190,14 @@ function openModal(id) {
       <ol class="sc-steps">
         <li>In Superchat <b>„Vorlage erstellen"</b> öffnen.</li>
         ${t.kategorie ? `<li>Feld <b>Vorlagen-Kategorie</b> → <b>${esc(t.kategorie)}</b></li>` : ''}
-        ${base.header && base.header.type === 'text'
-          ? `<li>Feld <b>Anhang / Überschrift</b> → Überschrift: „${esc(base.header.value || '')}"</li>`
-          : (base.header && base.header.type ? `<li>Feld <b>Anhang / Überschrift</b> → <b>${esc(HEADER_LABEL[base.header.type] || base.header.type)}</b> hochladen (siehe Bild oben)</li>` : '')}
+        ${t.header && t.header.type === 'text'
+          ? `<li>Feld <b>Anhang / Überschrift</b> → Überschrift: „${esc(t.header.value || '')}"</li>`
+          : (t.header && t.header.type ? `<li>Feld <b>Anhang / Überschrift</b> → <b>${esc(HEADER_LABEL[t.header.type] || t.header.type)}</b> hochladen (siehe Bild oben)</li>` : '')}
         <li>Feld <b>Nachricht</b>: <button class="copy-row inline" id="copy-body">📋 Vorlagentext kopieren</button>
-          ${base.variables && base.variables.length ? `<div class="var-legend">Platzhalter in Superchat als Variable einfügen: ${base.variables.map(v => `<span class="var">{{${v.position}}}</span>=${esc(v.display_name || '')}`).join(' · ')}</div>` : ''}</li>
-        ${base.footer ? `<li>Feld <b>Fußzeile</b>: <button class="copy-row inline" id="copy-footer">📋 „${esc(base.footer)}"</button></li>` : ''}
-        ${base.buttons && base.buttons.length ? `<li>Bei <b>Button hinzufügen</b> ${base.buttons.length} Button(s) anlegen:
-          <div class="sc-btns">${base.buttons.map((b, i) => `<div class="sc-btn"><span class="btn-pos">${i + 1}</span> Typ <b>${esc(btnTypeLabel(b.type))}</b>, Label <button class="copy-row inline" data-cb="${i}">📋 „${esc(b.title || '')}"</button>${b.target ? ` · Wert: ${esc(b.target)}` : ''}</div>`).join('')}</div></li>` : ''}
+          ${t.variables && t.variables.length ? `<div class="var-legend">Platzhalter in Superchat als Variable einfügen: ${t.variables.map(v => `<span class="var">{{${v.position}}}</span>=${esc(v.display_name || '')}`).join(' · ')}</div>` : ''}</li>
+        ${t.footer ? `<li>Feld <b>Fußzeile</b>: <button class="copy-row inline" id="copy-footer">📋 „${esc(t.footer)}"</button></li>` : ''}
+        ${t.buttons && t.buttons.length ? `<li>Bei <b>Button hinzufügen</b> ${t.buttons.length} Button(s) anlegen:
+          <div class="sc-btns">${t.buttons.map((b, i) => `<div class="sc-btn"><span class="btn-pos">${i + 1}</span> Typ <b>${esc(btnTypeLabel(b.type))}</b>, Label <button class="copy-row inline" data-cb="${i}">📋 „${esc(b.title || '')}"</button>${b.target ? ` · Wert: ${esc(b.target)}` : ''}</div>`).join('')}</div></li>` : ''}
       </ol>
     </div>
     <div class="edit">
@@ -199,9 +217,9 @@ function openModal(id) {
   $('#modal').classList.remove('hidden');
   $('#f-save').onclick = () => saveOverlay(base.id);
   if ($('#f-reset')) $('#f-reset').onclick = () => resetOverlay(base.id);
-  if ($('#copy-body')) $('#copy-body').onclick = () => copyText(base.body, $('#copy-body'), '📋 Vorlagentext kopieren');
-  if ($('#copy-footer')) $('#copy-footer').onclick = () => copyText(base.footer, $('#copy-footer'), '📋 Fußzeile kopieren');
-  $$('[data-cb]').forEach(el => el.onclick = () => copyText((base.buttons[+el.dataset.cb] || {}).title, el, el.textContent));
+  if ($('#copy-body')) $('#copy-body').onclick = () => copyText(t.body, $('#copy-body'), '📋 Vorlagentext kopieren');
+  if ($('#copy-footer')) $('#copy-footer').onclick = () => copyText(t.footer, $('#copy-footer'), '📋 Fußzeile kopieren');
+  $$('[data-cb]').forEach(el => el.onclick = () => copyText((t.buttons[+el.dataset.cb] || {}).title, el, el.textContent));
 }
 async function copyText(text, btnEl, restore) {
   try { await navigator.clipboard.writeText(text || ''); }
@@ -252,15 +270,38 @@ async function openAdmin() {
     renderAdmin(customers, tById);
   } catch (e) { $('#admin-body').innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
 }
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr) - new Date()) / 86400000);
+}
+function ablaufBadge(t) {
+  if (!t || !t.expires_at) return '';
+  const d = daysUntil(t.expires_at);
+  const datum = new Date(t.expires_at).toLocaleDateString('de-DE');
+  if (t.status === 'expired' || d < 0) return `<span class="badge hidden-b">abgelaufen (${datum})</span>`;
+  if (d <= 14) return `<span class="badge mk">läuft in ${d} Tg. ab (${datum})</span>`;
+  return `<span class="cust-sub">aktiv bis ${datum}</span>`;
+}
 function renderAdmin(customers, tById) {
+  // ablaufende/abgelaufene zuerst
+  customers.sort((a, b) => {
+    const da = daysUntil(tById[a.tenant]?.expires_at) ?? 9999, db = daysUntil(tById[b.tenant]?.expires_at) ?? 9999;
+    return da - db;
+  });
   $('#admin-body').innerHTML = `
     <h2>Kunden verwalten</h2>
     <p class="sub">${customers.length} Kunde(n)</p>
     <form id="cust-form" class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
       <h3>Neuen Kunden anlegen</h3>
-      <label>Firma / Mandant<input type="text" id="c-name" required placeholder="z. B. Muster GmbH"></label>
+      <label>Firma / Mandant (intern)<input type="text" id="c-name" required placeholder="z. B. Muster GmbH"></label>
+      <label>Firmenname für die Verabschiedung (Footer in den Vorlagen)<input type="text" id="c-firma" required placeholder="z. B. Muster Finanz OHG"></label>
       <label>E-Mail (Login)<input type="email" id="c-email" required placeholder="kunde@firma.de"></label>
       <label>Passwort<input type="text" id="c-pass" required></label>
+      <h3 style="margin-top:6px">Links des Kunden (ersetzen die Völker-Links)</h3>
+      <label>Website (ersetzt <code>www.voelker-allianz.de</code>)<input type="text" id="c-web" placeholder="www.muster-finanz.de"></label>
+      <label>Weitere Ersetzungen — eine pro Zeile, Format <code>alt = neu</code>
+        <textarea id="c-more" placeholder="https://review.superchat.de/?rc=... = https://g.page/r/...&#10;https://tidycal.com/team/voelkerfinance/tkv = https://tidycal.com/muster/tkv"></textarea></label>
+      <p class="placeholder">Zugang läuft automatisch nach 365 Tagen ab (verlängerbar).</p>
       <div class="actions"><button type="submit" class="btn-save" id="c-save">Kunde anlegen</button>
         <button type="button" class="btn-reset" id="c-gen">Passwort neu</button></div>
       <div id="c-msg" class="hidden"></div>
@@ -271,8 +312,10 @@ function renderAdmin(customers, tById) {
         const t = tById[u.tenant];
         return `<div class="cust-row" data-uid="${u.id}" data-tid="${u.tenant || ''}">
           <div><div class="cust-mail">${esc(u.email)}</div>
-            <div class="cust-sub">${esc(t?.name || '— kein Mandant')}${u.verified ? '' : ' · unbestätigt'}</div></div>
+            <div class="cust-sub">${esc(t?.firma || t?.name || '— kein Mandant')}</div>
+            <div style="margin-top:3px">${ablaufBadge(t)}</div></div>
           <div class="cust-act">
+            ${t ? '<button class="mini" data-act="ext">+1 Jahr</button>' : ''}
             <button class="mini" data-act="pw">Passwort</button>
             <button class="mini danger" data-act="del">Löschen</button>
           </div></div>`;
@@ -284,19 +327,49 @@ function renderAdmin(customers, tById) {
   $$('.cust-row .mini').forEach(b => b.onclick = (e) => {
     const row = e.target.closest('.cust-row');
     if (b.dataset.act === 'pw') resetCustomerPass(row.dataset.uid);
+    else if (b.dataset.act === 'ext') extendTenant(row.dataset.tid);
     else deleteCustomer(row.dataset.uid, row.dataset.tid);
   });
+}
+// Onboarding-Felder → ersetzungen-Liste
+function buildErsetzungen() {
+  const list = [];
+  const web = $('#c-web').value.trim();
+  if (web) list.push({ from: 'www.voelker-allianz.de', to: web });
+  for (const line of ($('#c-more').value || '').split('\n')) {
+    const i = line.indexOf('=');
+    if (i < 0) continue;
+    const from = line.slice(0, i).trim(), to = line.slice(i + 1).trim();
+    if (from && to) list.push({ from, to });
+  }
+  return list;
+}
+async function extendTenant(tid) {
+  if (!tid) return;
+  try {
+    const t = await api('GET', `/api/collections/tenants/records/${tid}`);
+    const base = t.expires_at && new Date(t.expires_at) > new Date() ? new Date(t.expires_at) : new Date();
+    base.setDate(base.getDate() + 365);
+    await api('PATCH', `/api/collections/tenants/records/${tid}`, { expires_at: base.toISOString(), status: 'active' });
+    openAdmin();
+  } catch (e) { alert('Fehler: ' + e.message); }
 }
 async function createCustomer(e) {
   e.preventDefault();
   const name = $('#c-name').value.trim(), email = $('#c-email').value.trim(), pass = $('#c-pass').value.trim();
+  const firma = $('#c-firma').value.trim();
+  const ersetzungen = buildErsetzungen();
   const msg = $('#c-msg'), btn = $('#c-save');
   msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Legt an…';
   let tenant = null;
   try {
-    // 1) Mandant
+    // 1) Mandant mit Lizenz (365 Tage) + Personalisierung
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
-    tenant = await api('POST', '/api/collections/tenants/records', { name, slug, status: 'active' });
+    const now = new Date(), exp = new Date(); exp.setDate(exp.getDate() + 365);
+    tenant = await api('POST', '/api/collections/tenants/records', {
+      name, slug, status: 'active', firma, ersetzungen,
+      invited_at: now.toISOString(), expires_at: exp.toISOString(),
+    });
     // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
     //    unbestätigte Kunden dürfen sich trotzdem einloggen (authRule der users-Collection ist leer).
     await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
@@ -305,7 +378,7 @@ async function createCustomer(e) {
       <button type="button" class="copy-row" id="copy-cred" style="margin-top:6px">📋 Zugangsdaten kopieren</button>
       <br><small>Jetzt notieren/kopieren und an den Kunden geben — danach nicht mehr abrufbar.</small>`;
     $('#copy-cred').onclick = () => copyText(`WhatsApp-Vorlagen\nLogin: ${location.origin}/\nE-Mail: ${email}\nPasswort: ${pass}`, $('#copy-cred'), '📋 Zugangsdaten kopieren');
-    $('#c-name').value = ''; $('#c-email').value = ''; $('#c-pass').value = genPass();
+    $('#c-name').value = ''; $('#c-email').value = ''; $('#c-firma').value = ''; $('#c-web').value = ''; $('#c-more').value = ''; $('#c-pass').value = genPass();
     // Liste nicht sofort neu rendern (würde die Zugangsdaten-Anzeige überschreiben)
   } catch (ex) {
     // Rollback: eben angelegten Mandant wieder entfernen, damit nichts verwaist
