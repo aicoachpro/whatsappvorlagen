@@ -56,6 +56,11 @@ function fileURL(t) {
   const q = STATE.fileToken ? `?token=${STATE.fileToken}` : '';
   return `${API}/api/files/templates/${t.id}/${t.vorschaubild}${q}`;
 }
+function headerMediaURL(t) {
+  if (!t.header_media) return null;
+  const q = STATE.fileToken ? `?token=${STATE.fileToken}` : '';
+  return `${API}/api/files/templates/${t.id}/${t.header_media}${q}`;
+}
 
 /* ─── Merge Master ⊕ Overlay ───────────────────────────────────────────── */
 function effective(t) {
@@ -85,9 +90,13 @@ function bodyHtml(body, vars) {
 }
 // deutsche Bezeichnungen wie im Superchat-Editor (für 1:1-Übertragung)
 const HEADER_LABEL = { text: 'Text', image: 'Bild', video: 'Video', document: 'PDF' };
-function headerHtml(h) {
-  if (!h) return '';
+function headerHtml(t) {
+  const h = t.header; if (!h) return '';
   if (h.type === 'text') return `<div class="wa-hdr">${esc(h.value || '')}</div>`;
+  const url = headerMediaURL(t);
+  if (url && h.type === 'image') return `<div class="wa-hdr-img"><img src="${url}" loading="lazy" alt=""></div>`;
+  if (url && h.type === 'video') return `<div class="wa-hdr-img"><video src="${url}" controls preload="metadata"></video></div>`;
+  if (url && h.type === 'document') return `<a class="wa-hdr-media" href="${url}" target="_blank" rel="noopener">📄 ${esc(HEADER_LABEL[h.type] || h.type)} öffnen</a>`;
   const ic = h.type === 'image' ? '🖼️' : h.type === 'video' ? '🎬' : h.type === 'document' ? '📄' : '📎';
   return `<div class="wa-hdr-media">${ic} ${esc(HEADER_LABEL[h.type] || h.type)}</div>`;
 }
@@ -102,7 +111,7 @@ function buttonsHtml(buttons) {
 // vollständige WhatsApp-Vorschau-Bubble
 function bubbleHtml(t) {
   return `<div class="wa-bubble">
-    ${headerHtml(t.header)}
+    ${headerHtml(t)}
     <div class="wa-body">${bodyHtml(t.body, t.variables) || '<span class="placeholder">(kein Text)</span>'}</div>
     ${t.footer ? `<div class="wa-ftr">${esc(t.footer)}</div>` : ''}
   </div>${buttonsHtml(t.buttons)}`;
@@ -158,18 +167,20 @@ function openModal(id) {
     <h2>${esc(t.name)}</h2>
     <p class="sub">${esc(t.ordner || '')}${t.kategorie ? ' · ' + esc(t.kategorie) : ''}${chans ? ' · ' + esc(chans) : ''}</p>
     <div class="preview">${bubbleHtml(t)}</div>
-    ${base.buttons && base.buttons.length ? `<div class="btn-list">
-      <h3>Buttons der Vorlage</h3>
-      ${base.buttons.map((b, i) => `<div class="btn-row"><span class="btn-pos">${i + 1}</span>
-        <span class="btn-type">${esc(btnTypeLabel(b.type))}</span><span class="btn-label">${esc(b.title || '')}</span>
-        ${b.target ? `<span class="btn-target">${esc(b.target)}</span>` : ''}</div>`).join('')}
-    </div>` : ''}
     <div class="copy-block">
-      <h3>📋 Zum Nachbauen in Superchat</h3>
-      ${base.variables && base.variables.length ? `<div class="var-legend">Variablen:&nbsp; ${base.variables.map(v => `<span class="var">{{${v.position}}}</span>&nbsp;=&nbsp;${esc(v.display_name || '')}`).join('&nbsp;·&nbsp;')}</div>` : ''}
-      <button class="copy-row" id="copy-body">📋 Vorlagentext kopieren</button>
-      ${base.footer ? `<button class="copy-row" id="copy-footer">📋 Fußzeile kopieren</button>` : ''}
-      ${(base.buttons || []).map((b, i) => `<button class="copy-row" data-cb="${i}">📋 Button ${i + 1}: „${esc(b.title || '')}"</button>`).join('')}
+      <h3>📋 So überträgst du diese Vorlage nach Superchat</h3>
+      <ol class="sc-steps">
+        <li>In Superchat <b>„Vorlage erstellen"</b> öffnen.</li>
+        ${t.kategorie ? `<li>Feld <b>Vorlagen-Kategorie</b> → <b>${esc(t.kategorie)}</b></li>` : ''}
+        ${base.header && base.header.type === 'text'
+          ? `<li>Feld <b>Anhang / Überschrift</b> → Überschrift: „${esc(base.header.value || '')}"</li>`
+          : (base.header && base.header.type ? `<li>Feld <b>Anhang / Überschrift</b> → <b>${esc(HEADER_LABEL[base.header.type] || base.header.type)}</b> hochladen (siehe Bild oben)</li>` : '')}
+        <li>Feld <b>Nachricht</b>: <button class="copy-row inline" id="copy-body">📋 Vorlagentext kopieren</button>
+          ${base.variables && base.variables.length ? `<div class="var-legend">Platzhalter in Superchat als Variable einfügen: ${base.variables.map(v => `<span class="var">{{${v.position}}}</span>=${esc(v.display_name || '')}`).join(' · ')}</div>` : ''}</li>
+        ${base.footer ? `<li>Feld <b>Fußzeile</b>: <button class="copy-row inline" id="copy-footer">📋 „${esc(base.footer)}"</button></li>` : ''}
+        ${base.buttons && base.buttons.length ? `<li>Bei <b>Button hinzufügen</b> ${base.buttons.length} Button(s) anlegen:
+          <div class="sc-btns">${base.buttons.map((b, i) => `<div class="sc-btn"><span class="btn-pos">${i + 1}</span> Typ <b>${esc(btnTypeLabel(b.type))}</b>, Label <button class="copy-row inline" data-cb="${i}">📋 „${esc(b.title || '')}"</button>${b.target ? ` · Wert: ${esc(b.target)}` : ''}</div>`).join('')}</div></li>` : ''}
+      </ol>
     </div>
     <div class="edit">
       <h3>Deine Anpassungen</h3>
