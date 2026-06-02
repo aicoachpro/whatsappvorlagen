@@ -2,10 +2,12 @@
 
 ## v1.0.0 — 2026-06-02
 
-### Telegram-Anbindung (VOE-247)
+### Telegram-Anbindung + automatischer Lizenz-Check (VOE-247)
 - `agents/setup-telegram.js` — ermittelt Chat-ID aus Bot-Updates, schreibt `TELEGRAM_CHAT_ID` in `.env`, sendet Test-Nachricht
-- Bot `@voelker_vorlagen_bot` verbunden, Test erfolgreich zugestellt — Basis für Lizenz-Ablauf-Erinnerungen
+- Bot `@voelker_vorlagen_bot` verbunden, Test erfolgreich zugestellt
 - Fix: Token wurde nicht erkannt, weil die `.env`-Zeile auskommentiert (`#`) war
+- **`.github/workflows/lizenz-check.yml`** — täglicher GitHub-Actions-Lauf (06:00 UTC) von `check-tenant-expiry.js`; ersetzt den geplanten VPS-Cron (SSH netzseitig gesperrt). Zugangsdaten als GitHub-Secrets, Dry-Run-Test erfolgreich
+- VOE-247 damit abgeschlossen (Schema, Login-Sperre, +1-Jahr-Button, Erinnerung, Admin-Hervorhebung)
 
 ## v1.0.0 — 2026-06-01
 
