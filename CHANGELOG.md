@@ -1,5 +1,12 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## v1.0.0 — 2026-06-02
+
+### Telegram-Anbindung (VOE-247)
+- `agents/setup-telegram.js` — ermittelt Chat-ID aus Bot-Updates, schreibt `TELEGRAM_CHAT_ID` in `.env`, sendet Test-Nachricht
+- Bot `@voelker_vorlagen_bot` verbunden, Test erfolgreich zugestellt — Basis für Lizenz-Ablauf-Erinnerungen
+- Fix: Token wurde nicht erkannt, weil die `.env`-Zeile auskommentiert (`#`) war
+
 ## v1.0.0 — 2026-06-01
 
 ### User-Verwaltung + Infrastruktur (VOE-246, VOE-237)
