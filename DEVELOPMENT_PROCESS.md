@@ -22,10 +22,10 @@ Siehe GOVERNANCE.md §4 für Details.
 
 ## Projekt-spezifische Regeln
 
-### Notion-Sync
+### Superchat → PocketBase Sync
 
-- Jede Änderung am Sync-Modul **muss** mit einem Trockendurchlauf gegen Notion-Sandbox getestet werden.
-- Konflikt-Resolution-Strategie ist projektweit einheitlich (siehe `lib/sync/conflict.js`, sobald implementiert).
+- Jede Änderung am Sync-Modul (`agents/sync-superchat-to-pb.js`) **muss** vorher mit `--dry-run` und `--limit 3` gegen die Live-Instanz getestet werden — niemals blind über alle Templates fahren.
+- Anreicherungsfelder (kategorie, ordner, ueberschrift, buttons, urls, telefonnummer, schnellantwort, notizen, vorschaubild) bleiben **NIE** vom Sync überschrieben — sie sind Admin-Pflege im PocketBase-Admin (`/_/`).
 
 ### Superchat (WhatsApp BSP)
 

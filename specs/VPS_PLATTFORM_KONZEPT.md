@@ -1,7 +1,9 @@
 # Architektur-Konzept: VPS-Plattform (Notion-Ablösung)
 
-**Version:** 0.2.0 (Konzept, Stack auf reale Server-Umgebung angepasst) | **Stand:** 2026-05-31
-**Status:** Freigegeben — Roadmap angelegt (VOE-236…242), Phase 1 startbereit
+**Version:** 0.2.0 | **Stand:** 2026-05-31
+**Status:** 📚 **HISTORISCH** — Roadmap (VOE-236…242) vollständig umgesetzt, Notion-Pfad abgeschaltet mit VOE-242 (2026-06-06).
+
+> Dieses Dokument beschreibt das ursprüngliche Konzept der Notion-Ablösung und bleibt als Architektur-Historie erhalten. Den aktuellen Stand findest du in **[../SYSTEM_ARCHITECTURE.md](../SYSTEM_ARCHITECTURE.md)** und **[../ARCHITECTURE_DESIGN.md](../ARCHITECTURE_DESIGN.md)**.
 
 ## 1. Ziel
 
