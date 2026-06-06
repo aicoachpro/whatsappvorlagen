@@ -297,11 +297,20 @@ function renderAdmin(customers, tById) {
       <label>Firmenname für die Verabschiedung (Footer in den Vorlagen)<input type="text" id="c-firma" required placeholder="z. B. Muster Finanz OHG"></label>
       <label>E-Mail (Login)<input type="email" id="c-email" required placeholder="kunde@firma.de"></label>
       <label>Passwort<input type="text" id="c-pass" required></label>
-      <h3 style="margin-top:6px">Links des Kunden (ersetzen die Völker-Links)</h3>
+
+      <h3 style="margin-top:6px">Coach-Superchat-Account <span class="placeholder">(optional, später im Bearbeiten nachpflegbar)</span></h3>
+      <label>Superchat-API-Key<input type="password" id="c-sckey" autocomplete="off" placeholder="sk_…"></label>
+      <label>Superchat WABA-/Workspace-ID<input type="text" id="c-waba" placeholder="waba_…"></label>
+
+      <h3 style="margin-top:6px">Personalisierungs-Links <span class="placeholder">(optional)</span></h3>
       <label>Website (ersetzt <code>www.voelker-allianz.de</code>)<input type="text" id="c-web" placeholder="www.muster-finanz.de"></label>
+      <label>FlixCheck-Basis-URL<input type="text" id="c-flix" placeholder="https://flixcheck.de/muster"></label>
+      <label>Terminbuchungs-URL (TidyCal etc.)<input type="text" id="c-term" placeholder="https://tidycal.com/muster"></label>
+      <label>Bewertungs-URL (Google / Trustpilot)<input type="text" id="c-bew" placeholder="https://g.page/r/..."></label>
+      <label>Telefon-Servicenummer<input type="text" id="c-telefon" placeholder="0341 …"></label>
       <label>Weitere Ersetzungen — eine pro Zeile, Format <code>alt = neu</code>
         <textarea id="c-more" placeholder="https://review.superchat.de/?rc=... = https://g.page/r/...&#10;https://tidycal.com/team/voelkerfinance/tkv = https://tidycal.com/muster/tkv"></textarea></label>
-      <p class="placeholder">Zugang läuft automatisch nach 365 Tagen ab (verlängerbar).</p>
+      <p class="placeholder">Zugang läuft automatisch nach 365 Tagen ab (verlängerbar). Logo und Notizen kannst du nach dem Anlegen über „Bearbeiten" hinzufügen.</p>
       <div class="actions"><button type="submit" class="btn-save" id="c-save">Kunde anlegen</button>
         <button type="button" class="btn-reset" id="c-gen">Passwort neu</button></div>
       <div id="c-msg" class="hidden"></div>
@@ -315,6 +324,7 @@ function renderAdmin(customers, tById) {
             <div class="cust-sub">${esc(t?.firma || t?.name || '— kein Mandant')}</div>
             <div style="margin-top:3px">${ablaufBadge(t)}</div></div>
           <div class="cust-act">
+            ${t ? '<button class="mini" data-act="edit">Bearbeiten</button>' : ''}
             ${t ? '<button class="mini" data-act="ext">+1 Jahr</button>' : ''}
             <button class="mini" data-act="pw">Passwort</button>
             <button class="mini danger" data-act="del">Löschen</button>
@@ -326,9 +336,10 @@ function renderAdmin(customers, tById) {
   $('#cust-form').onsubmit = createCustomer;
   $$('.cust-row .mini').forEach(b => b.onclick = (e) => {
     const row = e.target.closest('.cust-row');
-    if (b.dataset.act === 'pw') resetCustomerPass(row.dataset.uid);
-    else if (b.dataset.act === 'ext') extendTenant(row.dataset.tid);
-    else deleteCustomer(row.dataset.uid, row.dataset.tid);
+    if      (b.dataset.act === 'pw')   resetCustomerPass(row.dataset.uid);
+    else if (b.dataset.act === 'ext')  extendTenant(row.dataset.tid);
+    else if (b.dataset.act === 'edit') openEditCustomer(row.dataset.tid);
+    else                               deleteCustomer(row.dataset.uid, row.dataset.tid);
   });
 }
 // Onboarding-Felder → ersetzungen-Liste
@@ -359,15 +370,23 @@ async function createCustomer(e) {
   const name = $('#c-name').value.trim(), email = $('#c-email').value.trim(), pass = $('#c-pass').value.trim();
   const firma = $('#c-firma').value.trim();
   const ersetzungen = buildErsetzungen();
+  const sc_api_key         = $('#c-sckey').value.trim();
+  const sc_waba_id         = $('#c-waba').value.trim();
+  const flixcheck_base_url = $('#c-flix').value.trim();
+  const terminbuchung_url  = $('#c-term').value.trim();
+  const bewertung_url      = $('#c-bew').value.trim();
+  const telefon            = $('#c-telefon').value.trim();
   const msg = $('#c-msg'), btn = $('#c-save');
   msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Legt an…';
   let tenant = null;
   try {
-    // 1) Mandant mit Lizenz (365 Tage) + Personalisierung
+    // 1) Mandant mit Lizenz (365 Tage) + Personalisierung + Coach-Superchat
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
     const now = new Date(), exp = new Date(); exp.setDate(exp.getDate() + 365);
     tenant = await api('POST', '/api/collections/tenants/records', {
       name, slug, status: 'active', firma, ersetzungen,
+      sc_api_key, sc_waba_id,
+      flixcheck_base_url, terminbuchung_url, bewertung_url, telefon,
       invited_at: now.toISOString(), expires_at: exp.toISOString(),
     });
     // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
@@ -376,15 +395,145 @@ async function createCustomer(e) {
     msg.className = 'ok-msg';
     msg.innerHTML = `✓ Kunde <b>${esc(email)}</b> angelegt.<br>Passwort: <code>${esc(pass)}</code>
       <button type="button" class="copy-row" id="copy-cred" style="margin-top:6px">📋 Zugangsdaten kopieren</button>
-      <br><small>Jetzt notieren/kopieren und an den Kunden geben — danach nicht mehr abrufbar.</small>`;
+      <br><small>Jetzt notieren/kopieren und an den Kunden geben — danach nicht mehr abrufbar. Logo & Notizen über „Bearbeiten" nachpflegen.</small>`;
     $('#copy-cred').onclick = () => copyText(`WhatsApp-Vorlagen\nLogin: ${location.origin}/\nE-Mail: ${email}\nPasswort: ${pass}`, $('#copy-cred'), '📋 Zugangsdaten kopieren');
-    $('#c-name').value = ''; $('#c-email').value = ''; $('#c-firma').value = ''; $('#c-web').value = ''; $('#c-more').value = ''; $('#c-pass').value = genPass();
+    for (const id of ['c-name','c-email','c-firma','c-web','c-more','c-sckey','c-waba','c-flix','c-term','c-bew','c-telefon']) {
+      const el = $('#' + id); if (el) el.value = '';
+    }
+    $('#c-pass').value = genPass();
     // Liste nicht sofort neu rendern (würde die Zugangsdaten-Anzeige überschreiben)
   } catch (ex) {
     // Rollback: eben angelegten Mandant wieder entfernen, damit nichts verwaist
     if (tenant) await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
     msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
   } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
+}
+
+/* ─── Edit-Modus: einzelnen Mandanten bearbeiten ───────────────────────── */
+function ersetzungenToText(arr) {
+  if (!Array.isArray(arr)) return '';
+  // `www.voelker-allianz.de` ist im UI als eigenes Website-Feld vertreten → aus der freien Liste rausfiltern
+  return arr.filter(e => e && e.from && e.from !== 'www.voelker-allianz.de').map(e => `${e.from} = ${e.to || ''}`).join('\n');
+}
+function ersetzungenFromForm(webId, moreId) {
+  const list = [];
+  const web = $('#' + webId).value.trim();
+  if (web) list.push({ from: 'www.voelker-allianz.de', to: web });
+  for (const line of ($('#' + moreId).value || '').split('\n')) {
+    const i = line.indexOf('=');
+    if (i < 0) continue;
+    const from = line.slice(0, i).trim(), to = line.slice(i + 1).trim();
+    if (from && to) list.push({ from, to });
+  }
+  return list;
+}
+function currentWebsiteOf(t) {
+  return (Array.isArray(t?.ersetzungen) ? t.ersetzungen.find(e => e?.from === 'www.voelker-allianz.de')?.to : '') || '';
+}
+
+async function openEditCustomer(tid) {
+  if (!tid) return;
+  $('#admin-body').innerHTML = '<p class="sub">lädt…</p>';
+  try {
+    const t = await api('GET', `/api/collections/tenants/records/${tid}`);
+    renderEditForm(t);
+  } catch (e) {
+    $('#admin-body').innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>
+      <p><button class="ghost" onclick="openAdmin()">← Zurück</button></p>`;
+  }
+}
+
+function renderEditForm(t) {
+  const expDate = (t.expires_at || '').slice(0, 10);
+  const logoUrl = t.logo ? `${API}/api/files/tenants/${t.id}/${t.logo}` : '';
+  $('#admin-body').innerHTML = `
+    <p><button type="button" class="ghost" id="back-list">← Zurück zur Liste</button></p>
+    <h2>Kunde bearbeiten</h2>
+    <p class="sub">${esc(t.name || '—')}${t.slug ? ` · <code>${esc(t.slug)}</code>` : ''}</p>
+    <form id="edit-form" class="edit">
+      <h3>Stammdaten</h3>
+      <label>Firma / Mandant (intern)<input type="text" id="e-name" required value="${esc(t.name || '')}"></label>
+      <label>Firmenname für die Verabschiedung (Footer in den Vorlagen)<input type="text" id="e-firma" value="${esc(t.firma || '')}"></label>
+      <label>Telefon-Servicenummer<input type="text" id="e-telefon" value="${esc(t.telefon || '')}"></label>
+      <label>Zugang läuft ab<input type="date" id="e-exp" value="${expDate}"></label>
+
+      <h3 style="margin-top:6px">Coach-Superchat-Account</h3>
+      <label>Superchat-API-Key<input type="password" id="e-sckey" autocomplete="off" value="${esc(t.sc_api_key || '')}"></label>
+      <label>Superchat WABA-/Workspace-ID<input type="text" id="e-waba" value="${esc(t.sc_waba_id || '')}"></label>
+
+      <h3 style="margin-top:6px">Personalisierungs-Links</h3>
+      <label>Website (ersetzt <code>www.voelker-allianz.de</code>)<input type="text" id="e-web" value="${esc(currentWebsiteOf(t))}"></label>
+      <label>FlixCheck-Basis-URL<input type="text" id="e-flix" value="${esc(t.flixcheck_base_url || '')}"></label>
+      <label>Terminbuchungs-URL (TidyCal etc.)<input type="text" id="e-term" value="${esc(t.terminbuchung_url || '')}"></label>
+      <label>Bewertungs-URL (Google / Trustpilot)<input type="text" id="e-bew" value="${esc(t.bewertung_url || '')}"></label>
+      <label>Weitere Ersetzungen — eine pro Zeile, Format <code>alt = neu</code>
+        <textarea id="e-more" rows="4">${esc(ersetzungenToText(t.ersetzungen))}</textarea></label>
+
+      <h3 style="margin-top:6px">Logo</h3>
+      ${logoUrl ? `<div style="margin-bottom:6px"><img src="${logoUrl}" alt="Logo" style="max-height:90px;border:1px solid var(--line);padding:6px;background:#fff"></div>` : '<p class="placeholder">Noch kein Logo hinterlegt.</p>'}
+      <label>Logo-Datei (PNG/JPG/SVG/WebP, max 5 MB) — leer lassen, um nichts zu ändern
+        <input type="file" id="e-logo" accept="image/png,image/jpeg,image/svg+xml,image/webp"></label>
+
+      <h3 style="margin-top:6px">Sonstiges</h3>
+      <label>Notizen<textarea id="e-notes" rows="4">${esc(t.notizen || '')}</textarea></label>
+
+      <div class="actions">
+        <button type="submit" class="btn-save" id="e-save">Speichern</button>
+        <button type="button" class="btn-reset" id="e-cancel">Abbrechen</button>
+      </div>
+      <div id="e-msg" class="hidden"></div>
+    </form>`;
+  $('#back-list').onclick = openAdmin;
+  $('#e-cancel').onclick  = openAdmin;
+  $('#edit-form').onsubmit = (ev) => saveTenantEdit(ev, t.id);
+}
+
+async function saveTenantEdit(e, tid) {
+  e.preventDefault();
+  const msg = $('#e-msg'), btn = $('#e-save');
+  msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Speichert…';
+  try {
+    const ersetzungen = ersetzungenFromForm('e-web', 'e-more');
+    const expRaw = $('#e-exp').value;
+    const data = {
+      name:               $('#e-name').value.trim(),
+      firma:              $('#e-firma').value.trim(),
+      telefon:            $('#e-telefon').value.trim(),
+      sc_api_key:         $('#e-sckey').value.trim(),
+      sc_waba_id:         $('#e-waba').value.trim(),
+      flixcheck_base_url: $('#e-flix').value.trim(),
+      terminbuchung_url:  $('#e-term').value.trim(),
+      bewertung_url:      $('#e-bew').value.trim(),
+      notizen:            $('#e-notes').value,
+      ersetzungen,
+    };
+    if (expRaw) data.expires_at = new Date(expRaw).toISOString();
+
+    const logoFile = $('#e-logo').files[0];
+    if (logoFile) {
+      // multipart, weil eine Datei dabei ist — alles in einem PATCH
+      const form = new FormData();
+      for (const [k, v] of Object.entries(data)) {
+        if (v === undefined || v === null) continue;
+        form.append(k, typeof v === 'object' ? JSON.stringify(v) : v);
+      }
+      form.append('logo', logoFile);
+      const headers = { 'Accept': 'application/json' };
+      if (store.token) headers['Authorization'] = store.token;
+      const res = await fetch(`${API}/api/collections/tenants/records/${tid}`, { method: 'PATCH', headers, body: form });
+      const txt = await res.text();
+      if (!res.ok) throw new Error((txt && JSON.parse(txt)?.message) || `Fehler ${res.status}`);
+    } else {
+      await api('PATCH', `/api/collections/tenants/records/${tid}`, data);
+    }
+
+    msg.className = 'ok-msg'; msg.textContent = '✓ Gespeichert.';
+    setTimeout(openAdmin, 700);
+  } catch (ex) {
+    msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Speichern';
+  }
 }
 async function resetCustomerPass(uid) {
   if (!confirm('Neues Passwort für diesen Kunden erzeugen?')) return;
