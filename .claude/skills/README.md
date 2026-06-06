@@ -39,6 +39,6 @@ cp -r /tmp/openclaw_skills/.claude/skills/{ideation,implement,backlog,architectu
 | Datei | Anpassen |
 |-------|----------|
 | `ideation/references/architecture-dimensions.md` | Compliance-Dimension ergänzen (Meta WhatsApp + DSGVO) |
-| `ideation/references/story-template-feature.md` | Sektionen für WhatsApp-Templates / Notion-Sync |
+| `ideation/references/story-template-feature.md` | Sektionen für WhatsApp-Templates / PocketBase-Sync |
 | `implement/references/change-checklist.md` | Compliance-Pre-Send-Check |
 | `backlog/SKILL.md` | Linear Team `wav`, Prefix `WAVS-` |

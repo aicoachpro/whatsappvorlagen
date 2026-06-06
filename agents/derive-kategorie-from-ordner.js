@@ -2,8 +2,8 @@
  * agents/derive-kategorie-from-ordner.js — Heuristik: Ordner → Kategorie (VOE-238/Datenqualität)
  *
  * Leitet die Meta-Kategorie (Verwaltung=UTILITY / Marketing=MARKETING) heuristisch aus dem
- * Ordnernamen ab — NUR für Records, deren `kategorie` noch leer ist. Die in Notion gepflegten
- * Kategorien (Admin-Handarbeit) werden NIE überschrieben.
+ * Ordnernamen ab — NUR für Records, deren `kategorie` noch leer ist. Die im PocketBase-Admin
+ * gepflegten Kategorien (Admin-Handarbeit) werden NIE überschrieben.
  *
  * Heuristik (konservativ — im Zweifel Verwaltung, da UTILITY die compliance-sichere Default ist):
  *   Marketing  ⟸ Ordner enthält: lead, kampagn, automation, neukund, follow, aktion, akquise, bewerbung, kette
@@ -74,7 +74,7 @@ async function pbAll() {
   const todo = [];
   let noOrdner = 0;
   for (const r of recs) {
-    if (r.kategorie && r.kategorie.trim()) continue;     // Notion-Pflege nicht anfassen
+    if (r.kategorie && r.kategorie.trim()) continue;     // Admin-Pflege nicht anfassen
     const ordner = (r.ordner || '').trim();
     if (!ordner) { noOrdner++; continue; }
     const kat = MARKETING_RE.test(ordner) ? 'Marketing' : 'Verwaltung';

@@ -1,5 +1,15 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## v1.0.0 — 2026-06-06
+
+### Notion-Pfad abgeschaltet (VOE-242)
+- Notion als Mirror- und Auslieferungs-DB endgültig stillgelegt — **PocketBase** (`vorlagen.voelkergroup.cloud`) ist die alleinige Mirror-/Auslieferungs-DB.
+- Gelöscht: `agents/sync-superchat-to-notion.js`, `agents/notion-enrich-to-pb.js` (einmalige Migration abgeschlossen)
+- npm-Scripts `sync:notion` + `enrich:pb` entfernt
+- Doku (CLAUDE.md, INDEX.md, ARCHITECTURE_DESIGN.md, SYSTEM_ARCHITECTURE.md, COMPONENT_INVENTORY.md, SECURITY.md, DEVELOPMENT_PROCESS.md) auf reine PocketBase-Architektur umgestellt
+- `specs/VPS_PLATTFORM_KONZEPT.md` als historisches Dokument markiert
+- Linear: VOE-186, VOE-188, VOE-189, VOE-214 als obsolet geschlossen
+
 ## v1.0.0 — 2026-06-02
 
 ### Telegram-Anbindung + automatischer Lizenz-Check (VOE-247)

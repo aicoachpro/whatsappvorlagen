@@ -86,39 +86,7 @@ async function testLinear() {
   }
 }
 
-// ─── 2) Notion ───────────────────────────────────────────────────────────────
-async function testNotion() {
-  const token = env.NOTION_TOKEN;
-  const dbId  = env.NOTION_DATABASE_ID;
-  if (isPlaceholder(token)) {
-    status('NOTION_TOKEN', 'MISSING', 'in .env nicht befuellt');
-    return;
-  }
-  // a) /v1/users/me — pure auth check
-  const r1 = await probe('Notion auth', 'https://api.notion.com/v1/users/me', {
-    'Authorization':   `Bearer ${token}`,
-    'Notion-Version':  '2022-06-28',
-  });
-  if (r1.ok) status('NOTION_TOKEN', 'OK', `(${r1.code})`);
-  else       status('NOTION_TOKEN', 'FAIL', `${r1.code || ''} ${r1.msg || ''}`.trim());
-
-  // b) DB-Zugriff (zeigt, ob die Integration zur Page geteilt wurde)
-  if (isPlaceholder(dbId)) {
-    status('NOTION_DATABASE_ID', 'MISSING', 'in .env nicht befuellt');
-    return;
-  }
-  const r2 = await probe('Notion DB', `https://api.notion.com/v1/databases/${dbId}`, {
-    'Authorization':   `Bearer ${token}`,
-    'Notion-Version':  '2022-06-28',
-  });
-  if (r2.ok) status('NOTION_DATABASE_ID', 'OK', `(${r2.code} — Integration hat Zugriff)`);
-  else       status('NOTION_DATABASE_ID', 'FAIL',
-    r2.code === 404
-      ? '404 — Integration ist NICHT zur Page "Whatsapp Vorlagen" geteilt'
-      : `${r2.code || ''} ${r2.msg || ''}`.trim());
-}
-
-// ─── 3) Superchat ────────────────────────────────────────────────────────────
+// ─── 2) Superchat ────────────────────────────────────────────────────────────
 async function testSuperchat() {
   const key     = env.SUPERCHAT_API_KEY;
   const inboxId = env.SUPERCHAT_INBOX_ID;
@@ -161,7 +129,7 @@ async function testSuperchat() {
   }
 }
 
-// ─── 4) Optional: Telegram ───────────────────────────────────────────────────
+// ─── 3) Optional: Telegram ───────────────────────────────────────────────────
 async function testTelegram() {
   const token = env.TELEGRAM_BOT_TOKEN;
   if (isPlaceholder(token)) {
@@ -177,7 +145,6 @@ async function testTelegram() {
 (async () => {
   console.log('\n[ENV-Test] .env smoke test\n');
   await testLinear();
-  await testNotion();
   await testSuperchat();
   await testTelegram();
   console.log('\n[ENV-Test] done.\n');

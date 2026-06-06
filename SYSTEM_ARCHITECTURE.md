@@ -1,142 +1,107 @@
 # WhatsAppVorlagen SuperChat — System Architecture
 
-**Version:** 1.0.0 | **Stand:** 2026-05-04
+**Version:** 1.0.0 | **Stand:** 2026-06-06
 
 ## Überblick
 
-Synchronisation WhatsApp-Vorlagen mit Notion. Bidirektionaler Abgleich zwischen WhatsApp Business API Templates und einer Notion-Datenbank.
-
-## Komponenten
-
-[Wird befüllt, sobald Code entsteht.]
-
-## Notion-Datenquelle
-
-**Database:** `Whatsapp Vorlagen autoabgleich`
-**Pfad in Notion:** `🚀 CRM & Sales Hub` › `💬 Superchat Workflows & Vorlagen` › `Vorlagen Repository` › `Whatsapp Vorlagen autoabgleich`
-**Database ID:** `07ee35a1-94de-82d2-8748-81c0763b26df`
-**Data Source ID:** `c1ce35a1-94de-8215-be2f-874936629ea4`
-**URL:** https://www.notion.so/voelkergrp/07ee35a194de82d2874881c0763b26df
-
-### Schema
-
-| Feld | Typ | Anmerkung |
-|------|-----|-----------|
-| `Name` | title | Vorlagen-Name (Title) |
-| `Vorlagentext` | text | Hauptinhalt der Nachricht |
-| `Überschrift` | text | optionale Header-Zeile |
-| `Fusszeile` | text | optionaler Footer |
-| `Kategorie` | select | `Verwaltung` \| `Marketing` |
-| `Ordner` | select | 18 Ordner-Codes (z.B. `#1 Kommunikation`, `#52 Leads`, `#8 DSGVO/EWEn`) |
-| `Anhang` | file | Datei-Anhänge |
-| `Anhang / Überschrift hinzufügen(optional)` | select | `Bild` \| `Video` \| `PDF` \| `Überschrift` |
-| `Vorschaubild` | file | Card-Cover für Notion-Galerie |
-| `Button hinzufügen` | multi_select | `Schnellantwort` \| `Statische URL` \| `Dynamische URL` \| `Telefonnummer` |
-| `Button Name` | text | Button-Beschriftung |
-| `Schnellantwort` | text | Quick-Reply-Inhalt |
-| `URL's` | url | Link für URL-Buttons |
-| `Telefonnummer` | phone_number | Rufnummer für Phone-Buttons |
-| `Notizen` | text | interne Notizen |
-
-### Mapping-Hinweise (Notion → Superchat/WhatsApp)
-
-| Notion-Konzept | WhatsApp-Konzept | Mapping-Regel |
-|----------------|------------------|---------------|
-| `Kategorie` Marketing | `MARKETING` Template-Category | direkt |
-| `Kategorie` Verwaltung | `UTILITY` Template-Category | direkt |
-| `Überschrift` | Header-Component (TEXT) | bei Bedarf mit Anhang-Typ kombinieren |
-| `Anhang` + Anhang-Typ Bild/Video/PDF | Header-Component (IMAGE/VIDEO/DOCUMENT) | mutually exclusive mit Text-Header |
-| `Vorlagentext` | Body-Component | Pflicht |
-| `Fusszeile` | Footer-Component | optional |
-| `Button hinzufügen` | Button-Component | max 3 Buttons (WA-Limit) |
-| `Schnellantwort` | QUICK_REPLY-Button | |
-| `URL's` (statisch) | URL-Button | |
-| `URL's` (dynamisch) | URL-Button mit Variable | Variable-Pattern dokumentieren |
-| `Telefonnummer` | PHONE_NUMBER-Button | |
-
-## Datenfluss & Master-Slave-Modell
+Synchronisation von WhatsApp-Vorlagen aus Superchat (BSP / Master) in eine eigene, selbstgehostete PocketBase-Plattform. Die Plattform spiegelt den Master-Katalog und liefert ihn — mit tenant-spezifischen Anpassungen (Overlays) und Personalisierung — an Coach-Kunden aus.
 
 ```
-                  Initial / Continuous Mirror
-                  ─────────────────────────▶
-[Superchat]                                       [Notion DB autoabgleich]
- (MASTER)         ◀─────────────────────────       (MIRROR / Distribution)
-                  Push-on-Demand (Phase 2)
+   Superchat (Master)                     PocketBase (vorlagen.voelkergroup.cloud)
+   ───────────────────                    ──────────────────────────────────────
+   /v1.0/templates  ───── sync ──────▶    templates (Master-Spiegel + Anreicherung)
+                                          template_overlays (Tenant-Änderungen)
+                                          tenants / users (Mandanten + Login)
                                                             │
                                                             ▼
-                                                   [Kunden-Workspaces
-                                                    (dupliziert/geshart)]
+                                          webui/ (Coach-Login, Galerie, Editor)
+                                          /_/   (PocketBase-Admin)
 ```
 
-**Superchat ist die Wahrheit.** Notion spiegelt nur, ist aber das Format, in dem die
-Vorlagen-Datenbank an Kunden ausgeliefert wird. Kunden ändern in ihrer Notion-Kopie und
-sollen perspektivisch per Knopfdruck nach Superchat zurückspielen können.
+Notion-Pfad abgeschaltet mit VOE-242 (2026-06-06). Hub-Dokument: [ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md).
 
-### Phasen
+## Datenfluss
 
-| Phase | Richtung | Zweck | Status |
-|-------|----------|-------|--------|
-| **1** | Superchat → Notion | Initial Import + kontinuierlicher Mirror — Notion bleibt aktuell | geplant |
-| **2** | Notion → Superchat | „Knopfdruck"-Push — Kunden spielen ihre Notion-Änderungen zurück | später |
-| **3** | bidirektional / konfliktbehandelnd | Optional, wenn beide Richtungen produktiv genutzt werden | offen |
+1. **Sync (Superchat → PocketBase):** `agents/sync-superchat-to-pb.js` ruft `GET /v1.0/templates` (cursor-paginiert) und macht Upsert per `superchat_id`. Echte Superchat-Felder (`name`, `body`, `footer`, `variables`, `category`, `buttons`, `header`, `channels`, `folder`) werden überschrieben — Admin-Anreicherung bleibt unangetastet.
+2. **Coach-Login:** Coach meldet sich am `webui/` an. PocketBase-API-Rules erzwingen Mandantentrennung serverseitig (Cross-Tenant-Test 8/8 PASS, VOE-240).
+3. **Overlay-Editor:** Coach passt einzelne Vorlagen an (Body, Footer, Buttons …). Änderungen landen in `template_overlays` und werden im UI als „Master + Overlay" gerendert (`effective(t)` in `webui/app.js`).
+4. **Personalisierung beim Rendern:** Onboarding-Felder des Coaches werden zur Anzeigezeit über `personalize(text)` ersetzt (z.B. `VÖLKER Finance OHG` → Coach-Firma).
+5. **Coach-Push (geplant):** Vorlagen aus dem PocketBase-Master-Katalog werden personalisiert in den Superchat-Account des Coaches gepusht. Roadmap: VOE-248 (Personalisierung), VOE-249 (Onboarding).
 
-Superchat ist der **BSP (Business Solution Provider)** und kapselt die WhatsApp Business API
-(Template-Erstellung, Genehmigungs-Status, Versand, Inbox). Wir sprechen nie direkt mit Meta —
-immer nur mit der Superchat-API.
+## PocketBase-Datenmodell
 
-### Geschäfts-Kontext
+Quelle: `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js`, `agents/setup-tenant-lifecycle.js`, `agents/extend-templates-schema.js`.
 
-Heute manueller Service (500,01 € / Kunde, Mensch sitzt und überträgt). Nach Phase 2 ist die
-Übertragung selbstbedienbar — die 500 € werden Produktmarge statt Service-Stunden.
+### `templates` (Master-Katalog)
 
-## Superchat-Templates-API
+| Feld | Typ | Quelle | Anmerkung |
+|---|---|---|---|
+| `superchat_id` | text (unique) | Superchat | Stabile Korrelation |
+| `name` | text | Superchat | |
+| `status` | text | Superchat | `approved` / `external_deleted` / … |
+| `body`, `footer` | text/editor | Superchat | |
+| `variables` | json | Superchat | benannte Variablen |
+| `sc_category` | text | Superchat | echte Meta-Kategorie |
+| `kategorie` | select | Anreicherung | `Verwaltung` / `Marketing` (deutsch) |
+| `ordner` | text | Superchat | Folder-Name |
+| `ueberschrift` | text | Anreicherung | Header-Variante |
+| `buttons`, `header` | json | Superchat | Vollständige Komponenten (VOE-243) |
+| `channels` | json | Superchat | Inbox-Namen |
+| `track_links` | bool | Superchat | |
+| `urls`, `telefonnummer`, `schnellantwort`, `notizen` | text | Anreicherung | Admin-Pflege |
+| `vorschaubild` | file | Sync optional | Wird nur gesetzt, wenn leer |
+| `superchat_updated` | text | Superchat | ISO-8601 |
 
-**Endpoint:** `GET /v1.0/templates` — cursor-paginiert
-**Pagination:** Antwort enthält `pagination.next_cursor`; weitere Page via `?after=<cursor>`
-**Stand:** 271 Templates (262 approved, 9 external_deleted, 50 pro Page)
+### `tenants` (Mandanten)
 
-### Template-Schema (Auszug)
+Tenant-Metadaten inkl. Lizenz-Ablauf (`tenant_expires_at`), Personalisierungs-Felder (Firmenname, Webseite, FlixCheck-Basis, …). Ablauf-Logik in `agents/check-tenant-expiry.js` (GitHub-Actions täglich 06:00 UTC).
 
-```jsonc
-{
-  "id":      "tn_...",
-  "status":  "approved" | "external_deleted",
-  "name":    "KFZ Datenabfrage",
-  "content": {
-    "body":      "Hallo {{1}} {{2}}, ...",
-    "file_ids":  ["fl_..."],          // Anhänge
-    "variables": [
-      { "position": 1, "display_name": "Vorname", "type": "static" }
-    ],
-    "type":      "generic_template"
-  },
-  "folder":    null | { "id": "fo_...", "name": "..." },
-  "channels":  [{ "id": "mc_...", "name": "VÖLKER Finance OHG", "url": "/channels/mc_..." }],
-  "createdAt": "ISO-8601",
-  "updatedAt": "ISO-8601"
-}
-```
+### `template_overlays` (Tenant-Änderungen)
 
-### Sync-Mapping (beide Richtungen)
+Scope: `tenant` × `template`. PB-Rules erzwingen `tenant.id = currentUser.tenant.id`. Master bleibt unberührt; das Overlay verschmilzt zur Anzeige.
 
-| Superchat-Feld | Notion-Feld | Anmerkung |
+### `users`
+
+Felder: `email`, `password`, `role` (`admin` | …), `tenant` (relation). `role=admin` darf andere User/Tenants verwalten, aber sich nicht selbst auf `admin` heben (No-Self-Escalation).
+
+## Superchat-API
+
+**Base:** `https://api.superchat.com/v1.0` · **Auth:** Header `X-API-Key: $SUPERCHAT_API_KEY`
+
+| Verwendet | Endpoint | Zweck |
 |---|---|---|
-| `name` | `Name` (title) | 1:1 |
-| `content.body` | `Vorlagentext` | `{{n}}`-Variablen bleiben wörtlich |
-| `content.file_ids[]` | `Anhang` (file) | Notion-Files via Notion-Upload-API; Superchat-Files via Upload-Endpoint |
-| `content.variables[]` | (rekonstruiert aus `{{n}}` im Body) | Notion speichert keine separate Variable-Definition; Mapping per Position-Index |
-| `folder.name` | `Ordner` (select) | Folder-Optionen 1:1; Anlage in Superchat falls fehlend |
-| `status` | (Meta-Info, kein Notion-Feld) | nur lesend ins Notion gespiegelt |
-| (Meta-Kategorie) | `Kategorie` | bei Phase-2-Push übergibt Notion `Verwaltung`/`Marketing` an Submission |
-| `channels[]` | (kein Notion-Feld) | Phase 1: ignorieren; Phase 2: aus Inbox-Default ableiten |
-| (n/a) | `Überschrift`, `Fusszeile`, `Button*`, `URL's`, `Telefonnummer`, `Notizen`, `Schnellantwort`, `Vorschaubild` | reine Notion-Distribution-Felder, optional mappen wenn Superchat-Components ergänzt werden |
+| Sync | `GET /templates` (cursor-paginiert) | Master-Spiegel |
+| Helper | `GET /templates/{id}` | Einzel-Lookup |
+| Helper | `GET /inboxes` | Channel-Übersicht |
+
+**Bekannte API-Einschränkungen** (VOE-217 stillgelegt — Superchat schaltet das nicht frei):
+- `GET /analytics/templates` → HTTP 403 für diesen Workspace (Nutzungszahlen nicht über API).
+- `PATCH /templates/{id}` akzeptiert nur `name`, `folder_id`, `file_ids` — keine `content.category` (Kategorie-Wechsel = neu anlegen + löschen).
+- Vorlagen vom alten Typ `generic_template` (Pre-WA-Categories-Ära) lassen sich gar nicht updaten.
+
+## Tenancy-Modell (ADR-01)
+
+Modell A: **Master-Katalog ⊕ Kunden-Overlay**. Master ist die Wahrheit, Overlays sind tenant-isoliert. Vorteile: zentrale Pflege, isolierte Anpassungen, klare Trennung. Cross-Tenant-Isolation per Test gesichert (`tests/tenant-isolation.js`).
+
+## Deployment (ADR-02 / ADR-03)
+
+| Was | Wo |
+|---|---|
+| PocketBase | Docker-Container auf Hostinger-VPS `srv1537054` (`/opt/vorlagen-pb/`) |
+| Reverse-Proxy / TLS | Traefik (Let's-Encrypt) |
+| Auto-Deploy | `git push origin main` → Server-Cron-Pull (read-only Deploy-Key) — SSH netzseitig gedrosselt |
+| Backup | Täglich 03:30, 14 Tage Vorhaltung in `/root/backups/` |
+| Lizenz-Check | GitHub-Actions täglich 06:00 UTC (`.github/workflows/lizenz-check.yml`) |
+
+Details: [deploy/vorlagen/README.md](deploy/vorlagen/README.md).
 
 ## Externe Abhängigkeiten
 
 | Service | Zweck | Auth |
-|---------|-------|------|
-| Linear | Issue Tracking | API Key (.env: `LINEAR_API_KEY`) |
-| GitHub | Code Repository | SSH/HTTPS |
-| Notion | Mirror der Vorlagen — wird an Kunden ausgeliefert | Integration Token (.env: `NOTION_TOKEN`, `NOTION_DATABASE_ID`) |
-| Superchat | BSP für WhatsApp Business — Template-Verwaltung + Versand + Inbox | `X-API-Key: $SUPERCHAT_API_KEY` Header gegen Base `https://api.superchat.com/v1.0` |
-| Obsidian Vault | Doku-Spiegel | Filesystem |
+|---|---|---|
+| Superchat | Master der Vorlagen (BSP für WhatsApp Business) | `SUPERCHAT_API_KEY` |
+| PocketBase | Mirror/Auslieferungs-DB + Auth + File-Storage | `PB_ADMIN_EMAIL` / `PB_ADMIN_PASSWORD` |
+| Linear | Issue-Tracking | `LINEAR_API_KEY` |
+| GitHub | Code-Repository + Actions | SSH/HTTPS + Secrets |
+| Telegram | Lizenz-Reminder | `TELEGRAM_BOT_TOKEN` (optional) |
+| Obsidian-Vault | Doku-Spiegel (lokal) | Filesystem (`lib/doc-sync.js`) |

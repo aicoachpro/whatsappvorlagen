@@ -16,11 +16,11 @@ Superchat (Master) ──sync──▶ PocketBase (vorlagen.voelkergroup.cloud)
                             Kunden-UI (webui/)  +  Admin-Kundenverwaltung
 ```
 
-Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOE-242).
+Notion-Pfad abgeschaltet mit VOE-242 (2026-06-06) — PocketBase ist die einzige Mirror-/Auslieferungs-DB.
 
 ## §2 Design-Rationale ("Das Warum")
 
-- **Notion-Ablösung:** Volle Kontrolle (DSGVO, kein externes Rate-Limit), eigener VPS.
+- **Selbstgehostete Plattform statt Notion:** Volle Kontrolle (DSGVO, kein externes Rate-Limit), eigener VPS.
 - **Tenancy-Modell A:** Master-Katalog (Superchat-Mirror + Völker-Anreicherung) ⊕ Kunden-Overlay — Superchat-Wahrheit bleibt unberührt, Kundenänderungen isoliert.
 - **PocketBase statt Eigenbau:** DB + Auth + Admin-Panel + File-Storage + REST out-of-the-box.
 
@@ -43,7 +43,7 @@ Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOE-242)
 | Komponente | Pfad | Zweck |
 |---|---|---|
 | Superchat-Sync | `agents/sync-superchat-to-pb.js` | Master-Katalog → PocketBase |
-| Notion-Enrich / Header-Media / Ordner / Kategorie | `agents/{notion-enrich,sync-header-media,fill-ordner,derive-kategorie}-*.js` | Datenqualität |
+| Datenqualität (Header-Media, Ordner, Kategorie) | `agents/{sync-header-media,fill-ordner-from-superchat,derive-kategorie-from-ordner}.js` | Datenqualität |
 | Tenancy/User-Mgmt-Setup | `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js` | Collections + API-Rules |
 | Kunden-UI | `webui/` | Galerie, Overlay-Editor, Kundenverwaltung |
 | Config (SSoT) | `lib/config.js` | VERSION + DOC_FILES + CONFIG |

@@ -2,9 +2,9 @@
  * agents/fill-ordner-from-superchat.js — Gap-Fill: Superchat `folder` → PB `ordner`
  *
  * Superchat-Templates tragen ein `folder.name`. Diese Info ist eine SUPERCHAT-Quelle
- * (kein Notion-Handwerk) und wurde im Erst-Sync nicht übernommen. Dieses Script füllt
- * `ordner` NUR dort, wo es noch leer ist — die Notion-Anreicherung (Admin-Pflege) hat
- * also weiterhin Vorrang und wird nie überschrieben.
+ * und wurde im Erst-Sync nicht übernommen. Dieses Script füllt
+ * `ordner` NUR dort, wo es noch leer ist — die Admin-Anreicherung im PocketBase-Admin
+ * hat also weiterhin Vorrang und wird nie überschrieben.
  *
  * .env: SUPERCHAT_API_KEY, PB_URL, PB_ADMIN_EMAIL, PB_ADMIN_PASSWORD
  * Usage:
