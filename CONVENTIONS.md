@@ -6,8 +6,8 @@ Backlog-Adapter, Governance-Modus und aktive Gates.
 | Feld | Wert |
 |------|------|
 | **Runtime-Target** | `claude-code` (CLAUDE.md = aktiver Einstieg; AGENTS.md = portabler Codex-Einstieg) |
-| **Backlog-Adapter** | `linear` — Team „Voelker AI Solutions" (`VOE`), Projekt `WhatsAppVorlagen SuperChat` (`7ed012ad-3d68-423f-9047-4a7ef6217b2b`), Label `wavs` |
-| **Issue-Prefix** | `VOE-` |
+| **Backlog-Adapter** | `huly` — Workspace „VOELKER AI" (`voelkerai`), Projekt `WhatsAppVorlagen SuperChat` (`VOR`). Migriert von Linear am 2026-06-19 (offene Stories → VOR-1..8; Done/Canceled-Historie bleibt in Linear/`VOE-`) |
+| **Issue-Prefix** | `VOR-` (vormals `VOE-` in Linear) |
 | **Governance-Modus** | `lite` — kleines internes Tool (2 Personen). Kernkontext + Spec-Gate + Basis-Linting; keine schweren CI-/Coverage-/Performance-Gates |
 | **Execution-Isolation** | `none` — lineare Arbeit, keine parallelen Agenten |
 | **Doku-SSoT** | Repo (`/`-Root-MDs + `specs/` + `docs/`) + Obsidian-Vault-Spiegel (DocSync, siehe lib/doc-sync.js) |
@@ -17,7 +17,7 @@ Backlog-Adapter, Governance-Modus und aktive Gates.
 
 | Gate | Mechanismus | Status |
 |------|-------------|--------|
-| Spec-Gate | Kein Code ohne Linear-Issue (`VOE-`) — CLAUDE.md-Regel 1 | aktiv (manuell/Konvention) |
+| Spec-Gate | Kein Code ohne Huly-Issue (`VOR-`) — CLAUDE.md-Regel 1 | aktiv (manuell/Konvention) |
 | Doc-Version-Sync | `lib/config.js` VERSION = SSoT; `agents/self-healing.js` prüft Versions-Drift der DOC_FILES | aktiv (Self-Healing) |
 | Secret-Schutz | Nie `.env`/Keys committen oder loggen; Telefonnummern maskieren | aktiv (Konvention + .gitignore) |
 | Compliance | Meta WhatsApp Business Policy + DSGVO vor Versand/Push | aktiv (Konvention) |
@@ -32,6 +32,7 @@ SonarQube. Nachrüstbar, wenn das Projekt wächst/reguliert wird (siehe Bootstra
 | Provider | Status |
 |----------|--------|
 | GitHub (aicoachpro/whatsappvorlagen) | OK — Auto-Deploy-Key (read-only) hinterlegt |
-| Linear (Voelker AI Solutions) | OK |
+| Huly (Workspace „VOELKER AI", Projekt VOR) | OK — aktiver Tracker seit 2026-06-19 |
+| Linear (Voelker AI Solutions) | nur noch Historie (Done/Canceled), keine neuen Stories |
 | Hostinger-VPS / PocketBase | OK — live unter vorlagen.voelkergroup.cloud |
 | Obsidian-Vault | OK — DocSync |

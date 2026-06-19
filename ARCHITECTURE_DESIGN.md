@@ -16,7 +16,7 @@ Superchat (Master) ──sync──▶ PocketBase (vorlagen.voelkergroup.cloud)
                             Kunden-UI (webui/)  +  Admin-Kundenverwaltung
 ```
 
-Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOE-242).
+Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOR-2, ehem. VOE-242).
 
 ## §2 Design-Rationale ("Das Warum")
 
@@ -44,7 +44,7 @@ Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOE-242)
 |---|---|---|
 | Superchat-Sync | `agents/sync-superchat-to-pb.js` | Master-Katalog → PocketBase |
 | Notion-Enrich / Header-Media / Ordner / Kategorie | `agents/{notion-enrich,sync-header-media,fill-ordner,derive-kategorie}-*.js` | Datenqualität |
-| Tenancy/User-Mgmt-Setup | `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js` | Collections + API-Rules |
+| Tenancy/User-Mgmt-Setup | `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js`, `agents/setup-tenant-settings.js` | Collections + API-Rules (inkl. `tenant_settings` für Kunden-Self-Service, VOR-8) |
 | Kunden-UI | `webui/` | Galerie, Overlay-Editor, Kundenverwaltung |
 | Config (SSoT) | `lib/config.js` | VERSION + DOC_FILES + CONFIG |
 | Self-Healing / DocSync | `agents/self-healing.js`, `lib/doc-sync.js` | Versions-Drift, Obsidian-Spiegel |

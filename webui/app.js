@@ -50,19 +50,26 @@ async function loadData() {
   STATE.overlays = {};
   for (const o of ovs.items) if (o.template) STATE.overlays[o.template] = o;
   STATE.fileToken = ft.token || '';
-  // Eigenen Mandanten laden (Firma + Link-Ersetzungen für Personalisierung)
-  STATE.tenant = store.user?.tenant
-    ? await api('GET', `/api/collections/tenants/records/${store.user.tenant}`).catch(() => null)
-    : null;
+  // AI-generated: VOR-8 — Personalisierung aus tenant_settings (kunden-lesbar); tenants nur Admin.
+  STATE.settings = null;
+  STATE.tenant = null;
+  if (store.user?.tenant) {
+    const ts = await api('GET', `/api/collections/tenant_settings/records?perPage=1&filter=(tenant='${store.user.tenant}')`).catch(() => null);
+    STATE.settings = ts?.items?.[0] || null;
+    // tenants ist nur für Admin lesbar — best effort; Personalisierung kommt aus settings.
+    STATE.tenant = await api('GET', `/api/collections/tenants/records/${store.user.tenant}`).catch(() => null);
+  }
 }
 
 /* ─── Personalisierung: Master-Vorlage → Kundendaten (Firma + Links) ──────── */
 const FIRMA_RE = /V[öÖ]LKER\s+Finance\s+OHG/gi;
 function personalize(text) {
-  if (!text || !STATE.tenant) return text || '';
+  // AI-generated: VOR-8 — Quelle ist tenant_settings (Self-Service), Fallback tenants (Übergang).
+  const src = STATE.settings || STATE.tenant;
+  if (!text || !src) return text || '';
   let s = text;
-  if (STATE.tenant.firma) s = s.replace(FIRMA_RE, STATE.tenant.firma);
-  for (const e of (STATE.tenant.ersetzungen || [])) {
+  if (src.firma) s = s.replace(FIRMA_RE, src.firma);
+  for (const e of (src.ersetzungen || [])) {
     if (e && e.from) s = s.split(e.from).join(e.to || '');
   }
   return s;
@@ -333,10 +340,14 @@ function renderAdmin(customers, tById) {
 }
 // Onboarding-Felder → ersetzungen-Liste
 function buildErsetzungen() {
+  return parseErsetzungen($('#c-web').value, $('#c-more').value);
+}
+// AI-generated: VOR-8 — generischer Parser (Website-Feld + freie „alt = neu"-Zeilen), von Admin + Settings genutzt.
+function parseErsetzungen(webVal, moreVal) {
   const list = [];
-  const web = $('#c-web').value.trim();
+  const web = (webVal || '').trim();
   if (web) list.push({ from: 'www.voelker-allianz.de', to: web });
-  for (const line of ($('#c-more').value || '').split('\n')) {
+  for (const line of (moreVal || '').split('\n')) {
     const i = line.indexOf('=');
     if (i < 0) continue;
     const from = line.slice(0, i).trim(), to = line.slice(i + 1).trim();
@@ -373,6 +384,9 @@ async function createCustomer(e) {
     // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
     //    unbestätigte Kunden dürfen sich trotzdem einloggen (authRule der users-Collection ist leer).
     await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
+    // 3) Self-Service-Einstellungen (Firma + Links) als tenant_settings — kundeneditierbar (VOR-8).
+    //    catch: bricht das Onboarding nicht, falls die Collection (noch) nicht ausgerollt ist.
+    await api('POST', '/api/collections/tenant_settings/records', { tenant: tenant.id, firma, ersetzungen }).catch(() => {});
     msg.className = 'ok-msg';
     msg.innerHTML = `✓ Kunde <b>${esc(email)}</b> angelegt.<br>Passwort: <code>${esc(pass)}</code>
       <button type="button" class="copy-row" id="copy-cred" style="margin-top:6px">📋 Zugangsdaten kopieren</button>
@@ -405,6 +419,56 @@ async function deleteCustomer(uid, tid) {
 }
 function closeAdmin() { $('#admin').classList.add('hidden'); }
 
+/* ─── Einstellungen: Self-Service (Firma + Links) ──────────────────────────── */
+// AI-generated: VOR-8
+function splitErsetzungen(list) {
+  let web = '';
+  const more = [];
+  for (const e of (list || [])) {
+    if (!e || !e.from) continue;
+    if (e.from === 'www.voelker-allianz.de') web = e.to || '';
+    else more.push(`${e.from} = ${e.to || ''}`);
+  }
+  return { web, more: more.join('\n') };
+}
+function openSettings() {
+  if (!store.user?.tenant) { alert('Für deinen Zugang sind keine Einstellungen verfügbar.'); return; }
+  $('#settings').classList.remove('hidden');
+  const s = STATE.settings || {};
+  const { web, more } = splitErsetzungen(s.ersetzungen);
+  $('#settings-body').innerHTML = `
+    <h2>Meine Einstellungen</h2>
+    <p class="sub">Diese Werte personalisieren deine Vorlagen — nur für deinen Zugang.</p>
+    <div class="edit">
+      <label>Firmenname (Verabschiedung / Footer in den Vorlagen)
+        <input type="text" id="s-firma" value="${esc(s.firma || '')}" placeholder="z. B. Muster Finanz OHG"></label>
+      <h3 style="margin-top:6px">Meine Links</h3>
+      <label>Website (ersetzt <code>www.voelker-allianz.de</code>)
+        <input type="text" id="s-web" value="${esc(web)}" placeholder="www.muster-finanz.de"></label>
+      <label>Weitere Ersetzungen — eine pro Zeile, Format <code>alt = neu</code>
+        <textarea id="s-more" placeholder="https://review.superchat.de/?rc=... = https://g.page/r/...&#10;https://tidycal.com/team/voelkerfinance/tkv = https://tidycal.com/muster/tkv">${esc(more)}</textarea></label>
+      <div class="actions"><button class="btn-save" id="s-save">Speichern</button></div>
+      <div id="s-msg" class="hidden"></div>
+    </div>`;
+  $('#s-save').onclick = saveSettings;
+}
+async function saveSettings() {
+  const firma = $('#s-firma').value.trim();
+  const ersetzungen = parseErsetzungen($('#s-web').value, $('#s-more').value);
+  const msg = $('#s-msg'), btn = $('#s-save');
+  msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Speichert…';
+  try {
+    let rec;
+    if (STATE.settings?.id) rec = await api('PATCH', `/api/collections/tenant_settings/records/${STATE.settings.id}`, { firma, ersetzungen });
+    else rec = await api('POST', '/api/collections/tenant_settings/records', { tenant: store.user.tenant, firma, ersetzungen });
+    STATE.settings = rec;
+    msg.className = 'ok-msg'; msg.textContent = '✓ Gespeichert. Deine Vorlagen sind aktualisiert.';
+    render();
+  } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Speichern'; }
+}
+function closeSettings() { $('#settings').classList.add('hidden'); }
+
 /* ─── Boot ─────────────────────────────────────────────────────────────── */
 async function boot() {
   show('app');
@@ -431,6 +495,9 @@ $('#search').addEventListener('input', (e) => { STATE.q = e.target.value; render
 $('#admin-btn').addEventListener('click', openAdmin);
 $('#admin-close').addEventListener('click', closeAdmin);
 $('#admin').addEventListener('click', (e) => { if (e.target.id === 'admin') closeAdmin(); });
+$('#settings-btn').addEventListener('click', openSettings);
+$('#settings-close').addEventListener('click', closeSettings);
+$('#settings').addEventListener('click', (e) => { if (e.target.id === 'settings') closeSettings(); });
 
 (async () => {
   if (store.token) { try { await boot(); return; } catch {} }

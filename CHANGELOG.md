@@ -1,5 +1,15 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-06-19
+
+### Issue-Tracker Linear → Huly migriert
+- Aktiver Tracker ist jetzt **Huly** (Workspace „VOELKER AI", Projekt `VOR`, Präfix `VOR-`). 8 offene Stories migriert (VOR-1…8), Linear-Originale (`VOE-`) auf Canceled + Migrations-Kommentar; Done/Canceled-Historie bleibt in Linear.
+- `.claude/environment.json` (`backlog.adapter: huly`) + CLAUDE.md/CONVENTIONS.md/CONTEXT.md/AGENTS.md/ARCHITECTURE_DESIGN.md nachgezogen.
+
+### Kunden-Self-Service: Firma + Links selbst pflegen (VOR-8)
+- **`agents/setup-tenant-settings.js`** — neue tenant-scoped Collection `tenant_settings` (`firma`, `ersetzungen`) + Migration bestehender Kunden. Kundeneditierbare Felder von den Lizenzfeldern am `tenants` getrennt → Kunde kann **nicht** seine eigene Lizenz (`expires_at`/`status`) ändern.
+- **Kunden-UI** (`webui/`): neue Einstellungen-Seite (⚙️) — jeder Kunde pflegt Firmenname (Footer) + personalisierte Links selbst; `personalize()` liest aus `tenant_settings`. Admin-Onboarding legt `tenant_settings` mit an.
+
 ## v1.0.0 — 2026-06-02
 
 ### Telegram-Anbindung + automatischer Lizenz-Check (VOE-247)

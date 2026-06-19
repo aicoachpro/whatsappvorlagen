@@ -26,6 +26,7 @@
       <div class="brand"><span class="brand-mark">💬</span> WhatsApp-Vorlagen</div>
       <div class="topbar-right">
         <input type="search" id="search" placeholder="Suchen…" autocomplete="off">
+        <button id="settings-btn" class="ghost">⚙️ Einstellungen</button>
         <button id="admin-btn" class="ghost hidden">👤 Kunden</button>
         <span id="who" class="who"></span>
         <button id="logout" class="ghost">Abmelden</button>
@@ -41,6 +42,14 @@
     <div class="modal-card">
       <button id="modal-close" class="modal-close" aria-label="Schließen">×</button>
       <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Einstellungen: Self-Service (Firma + Links) -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-card">
+      <button id="settings-close" class="modal-close" aria-label="Schließen">×</button>
+      <div id="settings-body"></div>
     </div>
   </div>
 

@@ -15,10 +15,20 @@
     "deploy": "deploy/vorlagen/"
   },
   "backlog": {
-    "adapter": "linear",
-    "team": "Voelker AI Solutions",
-    "issue_prefix": "VOE-",
-    "project_label": "wavs"
+    "adapter": "huly",
+    "workspace": "VOELKER AI",
+    "workspace_url": "voelkerai",
+    "project": "WhatsAppVorlagen SuperChat",
+    "project_identifier": "VOR",
+    "issue_prefix": "VOR-",
+    "migrated_from": {
+      "adapter": "linear",
+      "team": "Voelker AI Solutions",
+      "issue_prefix": "VOE-",
+      "project_label": "wavs",
+      "migrated_at": "2026-06-19",
+      "note": "Offene Stories nach Huly migriert (VOR-1..8), Linear-Originale auf Canceled. Done/Canceled-Historie bleibt in Linear."
+    }
   },
   "metadata": {
     "created_at": "2026-06-01",

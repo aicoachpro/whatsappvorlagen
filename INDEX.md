@@ -18,6 +18,7 @@ Datei-Register. Jede neue Datei wird hier UND in [ARCHITECTURE_DESIGN.md §6](AR
 - [specs/VPS_PLATTFORM_KONZEPT.md](specs/VPS_PLATTFORM_KONZEPT.md) — Notion-Ablösung, Tenancy-Modell A
 - [specs/UI-REVIEW.md](specs/UI-REVIEW.md) — 6-Säulen-UI-Audit
 - [specs/TEMPLATE.md](specs/TEMPLATE.md) — Spec-Vorlage
+- [specs/VOR-8.md](specs/VOR-8.md) — Kunden-Self-Service: Firma + Links (`tenant_settings`)
 
 ## Code
 - `lib/` — config.js (SSoT), doc-sync.js

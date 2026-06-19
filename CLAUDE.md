@@ -18,7 +18,7 @@ Vor jeder Arbeit lesen: **[ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)** (Hu
 
 ## Regeln (NIEMALS)
 
-1. **NIEMALS** Code ändern ohne Linear Issue (Team `Voelker AI Solutions`, Prefix `VOE-`, Projekt-Label `wavs`)
+1. **NIEMALS** Code ändern ohne Huly Issue (Workspace `VOELKER AI`, Projekt `WhatsAppVorlagen SuperChat`, Prefix `VOR-`). Linear/`VOE-` ist seit 2026-06-19 nur noch Historie.
 2. **NIEMALS** Issue schließen ohne Git Push + Changelog
 3. **NIEMALS** API Keys im Chat — User trägt direkt in `.env` ein
 4. **NIEMALS** Issue ohne Labels anlegen

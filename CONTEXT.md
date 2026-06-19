@@ -18,7 +18,8 @@ kanonischen Begriffe. **Default = Guidance, kein Hard-Gate.**
 | --- | --- | --- |
 | `Story` / `Spec` / `Intent` | `Ticket` / `Anforderung` / `Ziel` | INTENTRON-Governance |
 | `Gate` | `Check` (generisch) | INTENTRON Quality-Gate |
-| `VOE-<n>` | freie Issue-Bezeichnung | Linear-Issue-Prefix |
+| `VOR-<n>` | freie Issue-Bezeichnung | Huly-Issue-Prefix (aktiv seit 2026-06-19) |
+| `VOE-<n>` | freie Issue-Bezeichnung | Alt-Prefix Linear (nur Historie; migriert nach `VOR-`) |
 
 ## Projekt-Domäne (WhatsAppVorlagen SuperChat)
 
