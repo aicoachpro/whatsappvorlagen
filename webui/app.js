@@ -420,22 +420,49 @@ async function deleteCustomer(uid, tid) {
 function closeAdmin() { $('#admin').classList.add('hidden'); }
 
 /* ─── Einstellungen: Self-Service (Firma + Links) ──────────────────────────── */
-// AI-generated: VOR-8
+// AI-generated: VOR-8 — bekannte Völker-Master-Links als benannte Felder (aus Vorlagen-Beispielen 2026-06-19).
+// `from` = Völker-Master (fest), Kunde trägt nur `to` (seinen eigenen) ein. Bei der Service-Basis
+// wird nur der Vorderteil ersetzt, der per-Nachricht-Suffix bleibt erhalten.
+const LINK_FIELDS = [
+  { key: 'web',     label: 'Website (ersetzt www.voelker-allianz.de)', from: 'www.voelker-allianz.de',                                ph: 'www.muster-finanz.de' },
+  { key: 'service', label: 'Service-/Flixlink-Basis',                  from: 'https://service.voelker.finance/s/',                     ph: 'https://service.muster.finance/s/' },
+  { key: 'review',  label: 'Bewertungslink',                           from: 'https://review.superchat.de/?rc=tc_muwZslmXFD3qgxb7580M', ph: 'eigener Bewertungslink (z. B. https://g.page/r/…)' },
+  { key: 'termin',  label: 'Termin-Link',                              from: 'https://tidycal.com/team/voelkerfinance/tkv',            ph: 'https://tidycal.com/muster/tkv' },
+];
 function splitErsetzungen(list) {
-  let web = '';
+  const byKey = {};
   const more = [];
   for (const e of (list || [])) {
     if (!e || !e.from) continue;
-    if (e.from === 'www.voelker-allianz.de') web = e.to || '';
+    const f = LINK_FIELDS.find(x => x.from === e.from);
+    if (f) byKey[f.key] = e.to || '';
     else more.push(`${e.from} = ${e.to || ''}`);
   }
-  return { web, more: more.join('\n') };
+  return { byKey, more: more.join('\n') };
+}
+// benannte Felder + freie „alt = neu"-Zeilen → ersetzungen-Liste
+function buildSettingsErsetzungen() {
+  const list = [];
+  for (const f of LINK_FIELDS) {
+    const to = $(`#s-link-${f.key}`).value.trim();
+    if (to) list.push({ from: f.from, to });
+  }
+  for (const line of ($('#s-more').value || '').split('\n')) {
+    const i = line.indexOf('=');
+    if (i < 0) continue;
+    const from = line.slice(0, i).trim(), to = line.slice(i + 1).trim();
+    if (from && to) list.push({ from, to });
+  }
+  return list;
 }
 function openSettings() {
   if (!store.user?.tenant) { alert('Für deinen Zugang sind keine Einstellungen verfügbar.'); return; }
   $('#settings').classList.remove('hidden');
   const s = STATE.settings || {};
-  const { web, more } = splitErsetzungen(s.ersetzungen);
+  const { byKey, more } = splitErsetzungen(s.ersetzungen);
+  const linkInputs = LINK_FIELDS.map(f => `
+      <label>${esc(f.label)}
+        <input type="text" id="s-link-${f.key}" value="${esc(byKey[f.key] || '')}" placeholder="${esc(f.ph)}"></label>`).join('');
   $('#settings-body').innerHTML = `
     <h2>Meine Einstellungen</h2>
     <p class="sub">Diese Werte personalisieren deine Vorlagen — nur für deinen Zugang.</p>
@@ -443,10 +470,10 @@ function openSettings() {
       <label>Firmenname (Verabschiedung / Footer in den Vorlagen)
         <input type="text" id="s-firma" value="${esc(s.firma || '')}" placeholder="z. B. Muster Finanz OHG"></label>
       <h3 style="margin-top:6px">Meine Links</h3>
-      <label>Website (ersetzt <code>www.voelker-allianz.de</code>)
-        <input type="text" id="s-web" value="${esc(web)}" placeholder="www.muster-finanz.de"></label>
+      <p class="placeholder">Trage deinen eigenen Link ein — er ersetzt überall den Völker-Link. Leer lassen = unverändert.</p>
+      ${linkInputs}
       <label>Weitere Ersetzungen — eine pro Zeile, Format <code>alt = neu</code>
-        <textarea id="s-more" placeholder="https://review.superchat.de/?rc=... = https://g.page/r/...&#10;https://tidycal.com/team/voelkerfinance/tkv = https://tidycal.com/muster/tkv">${esc(more)}</textarea></label>
+        <textarea id="s-more" placeholder="alter Text = neuer Text">${esc(more)}</textarea></label>
       <div class="actions"><button class="btn-save" id="s-save">Speichern</button></div>
       <div id="s-msg" class="hidden"></div>
     </div>`;
@@ -454,7 +481,7 @@ function openSettings() {
 }
 async function saveSettings() {
   const firma = $('#s-firma').value.trim();
-  const ersetzungen = parseErsetzungen($('#s-web').value, $('#s-more').value);
+  const ersetzungen = buildSettingsErsetzungen();
   const msg = $('#s-msg'), btn = $('#s-save');
   msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Speichert…';
   try {
