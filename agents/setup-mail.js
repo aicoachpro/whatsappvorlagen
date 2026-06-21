@@ -84,7 +84,7 @@ const RESET_BODY =
   '<p><strong>So startest du:</strong> klicke auf den Button, vergib dein eigenes Passwort und logge dich dann mit deiner E-Mail ein.</p>\n' +
   '<p><a class="btn" href="{APP_URL}/?reset={TOKEN}" target="_blank" rel="noopener">Passwort setzen &amp; loslegen</a></p>\n' +
   '<p>Ein kurzes Erklär-Video folgt in Kürze. Bei Fragen einfach auf diese E-Mail antworten.</p>\n' +
-  '<p>Dein Völker-Team</p>';
+  '<p>Mit herzlichen Grüßen<br>Thomas von Völker AI Solutions</p>';
 
 (async () => {
   console.log(`\n[Mail-Setup] Auth gegen ${PB_URL} ...`);
