@@ -5,7 +5,8 @@
 ### E-Mail-Flows: Passwort-vergessen + Willkommens-Mail (VOR-11)
 - **Login:** „Passwort vergessen?" → PB `request-password-reset` (neutrale Meldung); **Reset-Seite** liest `?reset=TOKEN` und setzt neues Passwort via `confirm-password-reset`.
 - **Onboarding:** `createCustomer` löst automatisch eine Willkommens-Mail mit „Passwort setzen"-Link aus (kein Klartext per Mail); **Backup-Passwort** bleibt als Fallback sichtbar (funktioniert auch ohne SMTP).
-- Endpoints lokal verifiziert (request → 204, confirm bad-token → 400). **E2E braucht SMTP** — Operator richtet PB-Mail-Settings ein (`deploy/vorlagen/README.md`).
+- **`agents/setup-mail.js`** (`npm run setup:mail`): konfiguriert PB-Mail automatisch (SMTP smtp.hostinger.com + App-URL + Reset-Template-Link auf die Kunden-UI) per Settings-API; Postfach-Passwort aus `.env` (`MAIL_PASSWORD`). Gegen lokale PB verifiziert (Settings- + Template-PATCH → 200).
+- Endpoints lokal verifiziert (request → 204, confirm bad-token → 400). **E2E braucht** nur noch: Postfach existiert (✓) + `MAIL_PASSWORD` in `.env` + `npm run setup:mail` (`deploy/vorlagen/README.md`).
 
 ### Notion abgeschaltet (VOR-2)
 - Notion gekündigt & abgeklemmt. Gelöscht: `agents/sync-superchat-to-notion.js`, `agents/notion-enrich-to-pb.js`. `agents/test-env.js` Notion-Health-Check entfernt; `package.json` ohne `sync:notion`/`enrich:pb`, Beschreibung aktualisiert.

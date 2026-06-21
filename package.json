@@ -11,6 +11,7 @@
     "sync:pb": "node agents/sync-superchat-to-pb.js",
     "sync:header-media": "node agents/sync-header-media.js",
     "setup:tenancy": "node agents/setup-pb-tenancy.js",
+    "setup:mail": "node agents/setup-mail.js",
     "setup:lifecycle": "node agents/setup-tenant-lifecycle.js",
     "check:expiry": "node agents/check-tenant-expiry.js",
     "test:tenancy": "node tests/tenant-isolation.js",

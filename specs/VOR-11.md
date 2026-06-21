@@ -27,8 +27,9 @@ PocketBase-eingebauter Mailversand + Auth-Flows:
 - [x] `createCustomer` löst Willkommens-Mail aus; **Backup-Passwort** als Fallback sichtbar (SMTP-unabhängig)
 - [x] Kein Klartext-Passwort per Mail (Set-Link-Flow); Mandantentrennung unberührt
 - [x] Endpoints lokal verifiziert (request → 204, confirm bad-token → 400; keine 404)
-- [x] Operator-Doku: PB-Mail-Settings + App-URL + Template (`deploy/vorlagen/README.md`)
-- [ ] **End-to-End mit echtem SMTP** — Operator richtet PB-Mail ein + testet (Mail kommt an, Link funktioniert)
+- [x] Mail-Config **automatisiert**: `agents/setup-mail.js` setzt SMTP + appURL + Reset-Template (Link → Kunden-UI) per Settings-API; gegen lokale PB verifiziert (Settings-PATCH + Template-PATCH → 200). `npm run setup:mail`
+- [x] Operator-Doku (`deploy/vorlagen/README.md`): Postfach + `MAIL_PASSWORD` in `.env` + `setup:mail`
+- [ ] **End-to-End mit echtem SMTP** — Operator: `MAIL_PASSWORD` in `.env`, `npm run setup:mail`, dann „Passwort vergessen" testen (Mail kommt an, Link funktioniert). Setzt gültigen PB-Superuser in `.env` voraus.
 
 ## Verifikation
 - `node --check webui/app.js` grün; Endpoints gegen lokale PB 0.37.5 getestet.
