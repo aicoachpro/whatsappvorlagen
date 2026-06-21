@@ -401,6 +401,17 @@ function renderAdmin(customers, tById) {
     return da - db;
   });
   $('#admin-body').innerHTML = `
+    <div class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
+      <h3>Mein Admin-Zugang</h3>
+      <p class="placeholder">Eingeloggt als <b>${esc(store.user.email)}</b>. Hier dein eigenes Passwort ändern — kein Skript nötig.</p>
+      <label>Aktuelles Passwort<input type="password" id="adm-old" autocomplete="current-password"></label>
+      <label>Neues Passwort (mind. 8 Zeichen)<input type="text" id="adm-pass" autocomplete="new-password"></label>
+      <div class="actions">
+        <button type="button" class="btn-save" id="adm-pw-save">Mein Passwort ändern</button>
+        <button type="button" class="btn-reset" id="adm-pw-gen">Vorschlag</button>
+      </div>
+      <div id="adm-pw-msg" class="hidden"></div>
+    </div>
     <h2>Kunden verwalten</h2>
     <p class="sub">${customers.length} Kunde(n)</p>
     <form id="cust-form" class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
@@ -409,6 +420,7 @@ function renderAdmin(customers, tById) {
       <label>Firmenname für die Verabschiedung (Footer in den Vorlagen)<input type="text" id="c-firma" required placeholder="z. B. Muster Finanz OHG"></label>
       <label>E-Mail (Login)<input type="email" id="c-email" required placeholder="kunde@firma.de"></label>
       <label>Passwort<input type="text" id="c-pass" required></label>
+      <label>Vertragsdatum (Start — Ablauf = +365 Tage)<input type="date" id="c-invited" required></label>
       <h3 style="margin-top:6px">Links des Kunden (ersetzen die Völker-Links)</h3>
       <label>Website (ersetzt <code>www.voelker-allianz.de</code>)<input type="text" id="c-web" placeholder="www.muster-finanz.de"></label>
       <label>Weitere Ersetzungen — eine pro Zeile, Format <code>alt = neu</code>
@@ -434,8 +446,11 @@ function renderAdmin(customers, tById) {
       }).join('') : '<p class="placeholder">Noch keine Kunden.</p>'}
     </div>`;
   $('#c-pass').value = genPass();
+  $('#c-invited').value = new Date().toISOString().slice(0, 10);
   $('#c-gen').onclick = () => { $('#c-pass').value = genPass(); };
   $('#cust-form').onsubmit = createCustomer;
+  $('#adm-pw-save').onclick = changeOwnPassword;
+  $('#adm-pw-gen').onclick = () => { $('#adm-pass').value = genPass(); };
   $$('.cust-row .mini').forEach(b => b.onclick = (e) => {
     const row = e.target.closest('.cust-row');
     if (b.dataset.act === 'pw') resetCustomerPass(row.dataset.uid);
@@ -481,10 +496,13 @@ async function createCustomer(e) {
   try {
     // 1) Mandant mit Lizenz (365 Tage) + Personalisierung
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
-    const now = new Date(), exp = new Date(); exp.setDate(exp.getDate() + 365);
+    // Vertragsdatum (Start) aus dem Formular; Ablauf = +365 Tage (VOR-3).
+    const invStr = $('#c-invited').value;
+    const invited = invStr ? new Date(invStr + 'T00:00:00') : new Date();
+    const exp = new Date(invited); exp.setDate(exp.getDate() + 365);
     tenant = await api('POST', '/api/collections/tenants/records', {
       name, slug, status: 'active', firma, ersetzungen,
-      invited_at: now.toISOString(), expires_at: exp.toISOString(),
+      invited_at: invited.toISOString(), expires_at: exp.toISOString(),
     });
     // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
     //    unbestätigte Kunden dürfen sich trotzdem einloggen (authRule der users-Collection ist leer).
@@ -504,6 +522,21 @@ async function createCustomer(e) {
     if (tenant) await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
     msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
   } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
+}
+// AI-generated: VOR-3 — Admin ändert sein EIGENES Passwort in der UI (kein Skript/DB-Eingriff)
+async function changeOwnPassword() {
+  const oldP = $('#adm-old').value, np = $('#adm-pass').value.trim();
+  const msg = $('#adm-pw-msg'); msg.className = 'hidden';
+  if (!oldP) { msg.className = 'error'; msg.textContent = 'Bitte aktuelles Passwort eingeben.'; return; }
+  if (np.length < 8) { msg.className = 'error'; msg.textContent = 'Neues Passwort: mindestens 8 Zeichen.'; return; }
+  const btn = $('#adm-pw-save'); btn.disabled = true; btn.textContent = 'Ändert…';
+  try {
+    // PocketBase verlangt oldPassword bei Änderung des eigenen Auth-Records.
+    await api('PATCH', `/api/collections/users/records/${store.user.id}`, { oldPassword: oldP, password: np, passwordConfirm: np });
+    msg.className = 'ok-msg'; msg.textContent = '✓ Passwort geändert. Beim nächsten Login das neue verwenden.';
+    $('#adm-old').value = ''; $('#adm-pass').value = '';
+  } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + (e.message || 'Passwortwechsel fehlgeschlagen'); }
+  finally { btn.disabled = false; btn.textContent = 'Mein Passwort ändern'; }
 }
 async function resetCustomerPass(uid) {
   if (!confirm('Neues Passwort für diesen Kunden erzeugen?')) return;

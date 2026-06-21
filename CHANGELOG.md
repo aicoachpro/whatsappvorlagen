@@ -2,6 +2,10 @@
 
 ## 2026-06-21
 
+### Admin: Eigen-Passwort + Vertragsdatum (VOR-3)
+- **Admin-Eigen-Passwort in der UI:** Abschnitt „Mein Admin-Zugang" — Admin setzt sein eigenes Passwort selbst (PATCH eigener Record mit `oldPassword`; kein Skript/DB-Eingriff mehr). PB-Verhalten verifiziert (ohne `oldPassword` → 400, mit → 200, Re-Login ok).
+- **Vertragsdatum beim Kunden-Anlegen:** neues `date`-Feld (Default heute) → `invited_at`; `expires_at` = Vertragsdatum + 365 Tage (Admin tippt kein Ablaufdatum).
+
 ### Per-Tenant SuperChat-Key — verschlüsselt (VOR-9, Slice 1)
 - **`agents/setup-tenant-secrets.js`** — neue **superuser-only** Collection `tenant_secrets` (`sc_api_key_enc`, `waba_id`, `mode`); Browser kommt nie direkt ran.
 - **`pb_hooks/superchat_creds.pb.js`** — neues serverseitiges Bauteil (PocketBase-JS-Hooks): Routen `POST/GET/DELETE /api/vor/superchat-key`. Validiert den Key per SuperChat-Test-Call, **verschlüsselt** ihn at-rest (AES-256-GCM via `$security.encrypt`, Schlüssel `SUPERCHAT_ENC_KEY` nur in Server-Env), gibt **nie** den Klartext zurück. Modi: `stored` (1-Klick) / `session` (nicht speichern).
