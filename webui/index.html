@@ -26,6 +26,7 @@
       <div class="brand"><span class="brand-mark">💬</span> WhatsApp-Vorlagen</div>
       <div class="topbar-right">
         <input type="search" id="search" placeholder="Suchen…" autocomplete="off">
+        <button id="bulk-btn" class="ghost hidden">📤 Alle einreichen</button>
         <button id="settings-btn" class="ghost">⚙️ Einstellungen</button>
         <button id="admin-btn" class="ghost hidden">👤 Kunden</button>
         <span id="who" class="who"></span>
@@ -50,6 +51,14 @@
     <div class="modal-card">
       <button id="settings-close" class="modal-close" aria-label="Schließen">×</button>
       <div id="settings-body"></div>
+    </div>
+  </div>
+
+  <!-- Bulk-Push: alle Vorlagen einreichen -->
+  <div id="bulk" class="modal hidden">
+    <div class="modal-card">
+      <button id="bulk-close" class="modal-close" aria-label="Schließen">×</button>
+      <div id="bulk-body"></div>
     </div>
   </div>
 

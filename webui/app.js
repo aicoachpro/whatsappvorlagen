@@ -296,6 +296,50 @@ async function pushSubmit(id) {
   finally { btn.disabled = false; btn.textContent = 'Jetzt verbindlich einreichen'; }
 }
 
+/* ─── Bulk-Push: alle Vorlagen einreichen (VOR-9 Slice 3) ───────────────────── */
+// AI-generated: VOR-9 — Bulk nutzt sequenziell die geprüfte Single-Submit-Route (Pro-Vorlage-Status)
+async function refreshScButton() {
+  try { const s = await api('GET', '/api/vor/superchat-key'); $('#bulk-btn').classList.toggle('hidden', !s.configured); }
+  catch (_) { $('#bulk-btn').classList.add('hidden'); }
+}
+function closeBulk() { $('#bulk').classList.add('hidden'); }
+function openBulkPush() {
+  const items = STATE.templates.filter(t => !effective(t).hidden).map(t => ({ id: t.id, name: effective(t).name }));
+  $('#bulk').classList.remove('hidden');
+  if (!items.length) { $('#bulk-body').innerHTML = '<h2>Alle einreichen</h2><p class="sub">Keine Vorlagen vorhanden.</p>'; return; }
+  const rows = items.map(it => `<div class="bp-row" id="bp-${it.id}"><span class="bp-name">${esc(it.name)}</span><span class="bp-status">wartet</span></div>`).join('');
+  $('#bulk-body').innerHTML = `
+    <h2>📤 Alle Vorlagen einreichen</h2>
+    <p class="sub">${items.length} Vorlage(n) werden in deinem SuperChat-Account <b>bei Meta zur Freigabe</b> eingereicht.</p>
+    <p class="placeholder">⚠️ Verbindlich: jede Einreichung zählt gegen dein Template-Limit, Ablehnungen drücken die Quality-Rating. Personalisierung (Firma + Links) wird angewendet.</p>
+    <div class="actions">
+      <button class="btn-save" id="bulk-go">Alle ${items.length} verbindlich einreichen</button>
+      <button class="btn-reset" id="bulk-cancel">Abbrechen</button>
+    </div>
+    <div id="bulk-sum" class="hidden"></div>
+    <div class="bp-list">${rows}</div>`;
+  $('#bulk-go').onclick = () => { const b = $('#bulk-go'); b.disabled = true; b.textContent = 'Läuft…'; runBulkPush(items, b); };
+  $('#bulk-cancel').onclick = closeBulk;
+}
+async function runBulkPush(items, goBtn) {
+  const sessionKey = sessionStorage.getItem('sc_session_key') || '';
+  let ok = 0, fail = 0;
+  for (const it of items) {
+    const row = document.getElementById('bp-' + it.id);
+    const st = row && row.querySelector('.bp-status');
+    if (st) st.textContent = '… reicht ein';
+    try {
+      const r = await api('POST', '/api/vor/push-template', { templateId: it.id, action: 'submit', sessionKey });
+      if (r.ok) { ok++; if (row) { row.classList.add('bp-ok'); if (st) st.textContent = '✓ ' + (r.status || 'pending'); } }
+      else { fail++; if (row) { row.classList.add('bp-fail'); if (st) st.textContent = '✗ ' + (r.error || 'Fehler'); } }
+    } catch (e) { fail++; if (row) { row.classList.add('bp-fail'); if (st) st.textContent = '✗ ' + e.message; } }
+    await new Promise(res => setTimeout(res, 250)); // sanft gegen SuperChat-Rate-Limits
+  }
+  const sum = $('#bulk-sum'); sum.className = fail ? 'error' : 'ok-msg';
+  sum.textContent = `Fertig: ${ok} eingereicht${fail ? ', ' + fail + ' Fehler' : ''}.`;
+  if (goBtn) { goBtn.disabled = false; goBtn.textContent = 'Erneut einreichen'; }
+}
+
 async function saveOverlay(templateId) {
   const data = {
     body_override:   $('#f-body').value.trim(),
@@ -599,7 +643,7 @@ async function saveSuperchatKey() {
       else sessionStorage.removeItem('sc_session_key');
       msg.className = 'ok-msg';
       msg.textContent = `✓ Verbunden (${esc(r.masked)}) — ${mode === 'stored' ? 'verschlüsselt gespeichert' : 'nur für diese Sitzung'}.`;
-      loadSuperchatStatus();
+      loadSuperchatStatus(); refreshScButton();
     } else {
       msg.className = 'error'; msg.textContent = 'Fehler: ' + (r.error || 'Key nicht akzeptiert.');
     }
@@ -614,7 +658,7 @@ async function deleteSuperchatKey() {
     sessionStorage.removeItem('sc_session_key');
     msg.className = 'ok-msg'; msg.textContent = '✓ Verbindung entfernt.';
     $('#sc-waba').value = '';
-    loadSuperchatStatus();
+    loadSuperchatStatus(); refreshScButton();
   } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
 }
 async function saveSettings() {
@@ -639,6 +683,7 @@ async function boot() {
   show('app');
   $('#admin-btn').classList.toggle('hidden', !isAdmin());
   await loadData(); render();
+  refreshScButton();
 }
 
 document.addEventListener('click', (e) => {
@@ -663,6 +708,9 @@ $('#admin').addEventListener('click', (e) => { if (e.target.id === 'admin') clos
 $('#settings-btn').addEventListener('click', openSettings);
 $('#settings-close').addEventListener('click', closeSettings);
 $('#settings').addEventListener('click', (e) => { if (e.target.id === 'settings') closeSettings(); });
+$('#bulk-btn').addEventListener('click', openBulkPush);
+$('#bulk-close').addEventListener('click', closeBulk);
+$('#bulk').addEventListener('click', (e) => { if (e.target.id === 'bulk') closeBulk(); });
 
 (async () => {
   if (store.token) { try { await boot(); return; } catch {} }

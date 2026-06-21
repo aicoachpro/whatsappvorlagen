@@ -92,8 +92,12 @@ Audit-Collection `tenant_push_log` (superuser-only) + UI im Detail-Modal.
 - [ ] **Live-Submit gegen Meta** — bewusst NICHT in Dev ausgeführt (reicht real bei Meta ein, Quota/Quality).
       Braucht EINEN gezielten Operator-Test mit echter WABA-ID. Code folgt der dokumentierten API.
 
-## Slice 3 (separat) — Bulk-Push
-Alle Vorlagen, Pro-Vorlage-Status, Rate-/Fehler-Handling (SuperChat-Limits, Teil-Fehlschläge).
+## Slice 3 — Bulk-Push (gebaut 2026-06-21)
+Frontend-orchestriert: sequenzielle Submits über die geprüfte Single-Route (kein Mass-Submit im Server).
+Topbar-Button „📤 Alle einreichen" (sichtbar wenn verbunden) → Bestätigungs-Overlay mit Pro-Vorlage-
+Statusliste (✓ pending / ✗ Fehler), 250 ms Pause gegen Rate-Limits, Continue-on-Error + Summary.
+ACs: [x] alle nicht-ausgeblendeten Vorlagen, [x] Pro-Vorlage-Status, [x] Teil-Fehlschläge abgefangen.
+(Live-Submit pro Vorlage = echte Meta-Einreichung — Operator-Test wie Slice 2.)
 
 ## Definition of Done (Slice 1)
 - [ ] Setup-Agent idempotent gegen PB ohne Fehler

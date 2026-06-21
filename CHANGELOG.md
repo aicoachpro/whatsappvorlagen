@@ -15,6 +15,13 @@
 - **Verifiziert:** Preview + Personalisierung + Folder-List gegen echte SuperChat-API (lokal). **Live-Submit bewusst nicht in Dev ausgeführt** (reicht real bei Meta ein) — braucht gezielten Operator-Test.
 - **JSVM-Fix:** PocketBase liefert JSON-Felder als Roh-Bytes → über `JSON.parse(String(v))` lesen.
 
+### Bulk-Push (VOR-9, Slice 3)
+- Topbar-Button „📤 Alle einreichen" (sichtbar wenn SuperChat verbunden) → Bestätigungs-Overlay mit Pro-Vorlage-Statusliste; sequenzielle Submits über die geprüfte Single-Route, 250 ms Pause gegen Rate-Limits, Continue-on-Error + Summary.
+
+### UI-Modernisierung — Design-System v2 (VOR-10)
+- `webui/styles.css` komplett überarbeitet: Verlaufs-Topbar + Brand-Badge, Pill-Filter mit aktivem Verlauf, erhöhte Karten mit Hover-Lift & gestaffelten Schatten, glasige Modals (Backdrop-Blur, Slide-in), Verlaufs-Buttons mit Gloss/Shadow, Fokus-Ringe, Hintergrund-Verläufe; `prefers-reduced-motion` respektiert. Alle Klassennamen erhalten (kein JS-Bruch).
+- Per Puppeteer gerendert/verifiziert (Login, Galerie, Detail-Modal).
+
 ## 2026-06-19
 
 ### Issue-Tracker Linear → Huly migriert
