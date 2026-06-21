@@ -48,7 +48,7 @@ const SMTP_HOST = env.MAIL_SMTP_HOST   || 'smtp.hostinger.com';
 const SMTP_PORT = parseInt(env.MAIL_SMTP_PORT || '465', 10);
 const SMTP_USER = env.MAIL_SMTP_USER   || 'noreply@voelkergroup.cloud';
 const SMTP_PASS = env.MAIL_PASSWORD;
-const SENDER_NAME = env.MAIL_SENDER_NAME    || 'WhatsApp-Vorlagen';
+const SENDER_NAME = env.MAIL_SENDER_NAME    || 'Völker Vorlagen';
 const SENDER_ADDR = env.MAIL_SENDER_ADDRESS || SMTP_USER;
 const APP_URL     = (env.APP_URL || 'https://vorlagen.voelkergroup.cloud').replace(/\/$/, '');
 
