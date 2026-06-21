@@ -503,7 +503,7 @@ async function createCustomer(e) {
   let tenant = null;
   try {
     // 1) Mandant mit Lizenz (365 Tage) + Personalisierung
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+    const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
     // Vertragsdatum (Start) aus dem Formular; Ablauf = +365 Tage (VOR-3).
     const invStr = $('#c-invited').value;
     const invited = invStr ? new Date(invStr + 'T00:00:00') : new Date();
@@ -540,6 +540,7 @@ async function createCustomer(e) {
 /* ─── CSV-Bulk-Import (VOR-12) ──────────────────────────────────────────────── */
 // AI-generated: VOR-12 — Latin-1/Semikolon-CSV; Bestehende übersprungen; neue → anlegen + Willkommens-Mail
 function csvCellId(s) { return 'ci-' + s.replace(/[^a-z0-9]/gi, '_'); }
+function slugify(s) { return (s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 function parseDeDate(s) {
   const m = (s || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
   return m ? new Date(+m[3], +m[2] - 1, +m[1], 12, 0, 0) : null; // 12:00 gegen TZ-Verschub
@@ -568,7 +569,11 @@ async function csvImportPreview() {
   box.innerHTML = '<p class="sub">lese…</p>';
   try {
     const buf = await f.arrayBuffer();
-    const rows = parseCsvText(new TextDecoder('windows-1252').decode(buf));
+    // Robust: erst UTF-8; ist das ungültig (Ersatzzeichen), war es Windows-1252 (Excel-Export).
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+    if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf);
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // BOM entfernen
+    const rows = parseCsvText(text);
     const ul = await api('GET', '/api/collections/users/records?perPage=500&fields=email');
     const have = new Set(ul.items.map(u => (u.email || '').toLowerCase()));
     const seen = new Set();
@@ -586,7 +591,7 @@ async function csvImportPreview() {
 }
 async function createCustomerRow(r) {
   const name = r.name || r.email.split('@')[0];
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+  const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
   const invited = parseDeDate(r.start) || new Date();
   const exp = new Date(invited); exp.setDate(exp.getDate() + 365);
   const pass = genPass();
