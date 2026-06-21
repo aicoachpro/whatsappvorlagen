@@ -50,21 +50,35 @@ Der Agent braucht gültige `PB_ADMIN_EMAIL`/`PB_ADMIN_PASSWORD` (Superuser) in `
 > Ohne SMTP funktioniert die App weiter: Kunde-Anlegen zeigt dann das **Backup-Passwort** zur
 > manuellen Weitergabe (Fallback). Reset-Mails werden erst nach `setup:mail` zugestellt.
 
-## Server-Hooks deployen (`pb_hooks/`, VOR-9)
-Die Per-Tenant-SuperChat-Anbindung läuft als PocketBase-JS-Hook serverseitig.
+## Server-Hooks deployen (`pb_hooks/`) — einmalig im Terminal
+Der Auto-Deploy liefert nur `webui/` → `pb_public/` aus, **nicht** `pb_hooks/`. Die Hooks
+(`personalize_mail` = Vorname-Anrede, VOR-12; `superchat_creds`/`superchat_push` = SuperChat-Push, VOR-9)
+müssen einmalig in `/opt/vorlagen-pb/pb_hooks/` kopiert werden. **Hostinger hPanel → VPS → Browser-Terminal**
+(als root), diesen Block einfügen:
+
 ```bash
-scp ../../pb_hooks/*.pb.js root@187.124.165.1:/opt/vorlagen-pb/pb_hooks/
-docker compose restart   # Hooks werden beim Start geladen
+REPO=$(dirname "$(find / -type d -name pb_hooks 2>/dev/null | grep -v '/opt/vorlagen-pb' | head -1)")
+echo ">> Repo: $REPO" && cd "$REPO" && git pull --ff-only
+mkdir -p /opt/vorlagen-pb/pb_hooks
+cp "$REPO"/pb_hooks/*.pb.js /opt/vorlagen-pb/pb_hooks/ && echo ">> kopiert:" && ls /opt/vorlagen-pb/pb_hooks/
+cd /root/vorlagen && docker compose restart && echo ">> FERTIG"
 ```
-**Pflicht-Env `SUPERCHAT_ENC_KEY`** (genau 32 Zeichen) — Schlüssel zum Ver-/Entschlüsseln der
-Kunden-API-Keys (AES-256-GCM). Liegt NUR in der Server-Env, **nie** in der DB/Git. In
-`docker-compose.yml` unter `vorlagen-pb` ergänzen:
+Findet der Block kein Repo (`Repo:` leer), stattdessen `find / -type d -name pb_hooks 2>/dev/null`
+laufen lassen und die Ausgabe weitergeben.
+
+> **Dauer-Lösung (optional):** Im Auto-Deploy-Cron zusätzlich `cp $REPO/pb_hooks/*.pb.js
+> /opt/vorlagen-pb/pb_hooks/ && docker compose -f /root/vorlagen/docker-compose.yml restart`
+> ergänzen — dann deployen Hooks künftig automatisch.
+
+### Nur für VOR-9 (SuperChat-Push) zusätzlich: `SUPERCHAT_ENC_KEY`
+`personalize_mail` (Vorname) braucht das **nicht**. Für SuperChat-Push: 32-Zeichen-Schlüssel in
+`/root/vorlagen/docker-compose.yml` unter `vorlagen-pb` ergänzen, dann `docker compose up -d`:
 ```yaml
     environment:
       - SUPERCHAT_ENC_KEY=<32-Zeichen-Schlüssel>   # z. B. openssl rand -hex 16
 ```
-> Schlüssel rotieren = alle gespeicherten Kunden-Keys werden unlesbar (Kunden müssen neu hinterlegen).
-> Optional `SUPERCHAT_BASE_URL` (Default `https://api.superchat.com/v1.0`).
+> Schlüssel rotieren = gespeicherte Kunden-Keys werden unlesbar. Optional `SUPERCHAT_BASE_URL`.
+> Collections `tenant_secrets`/`tenant_push_log` legt `node agents/setup-tenant-secrets.js` an.
 
 ## Backup (empfohlen: täglicher Cron auf dem Server)
 PocketBase-Datastore sichern (DB + Vorschaubilder). `crontab -e` als root:
