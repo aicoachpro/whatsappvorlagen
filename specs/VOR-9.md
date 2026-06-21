@@ -70,10 +70,27 @@ Kein Meta-Versand. Liefert genau das fehlende Eingabefeld + sichere Speicherung.
 - **Compliance** — Slice 1 sendet nichts an Meta; Compliance-Gate erst in Slice 2 (Einreichen).
 - **Maintainability** ✓ — folgt Rule-/Setup-Muster aus VOR-8.
 
-## Slice 2 (separat) — Einzel-Push = Einreichen bei Meta
-Effektive Vorlage (Master ⊕ Overlay ⊕ Personalisierung) → `POST /templates`; Ordner reuse-or-create
-(`folder_id`); **Compliance-Bestätigung** vor Einreichen; Status-Report (pending/approved/rejected);
-Audit-Log. Entschlüsselung serverseitig im Hook.
+## Slice 2 — Einzel-Push = Einreichen bei Meta (gebaut 2026-06-21)
+`pb_hooks/superchat_push.pb.js` (Routen `POST /api/vor/push-template`, `GET /api/vor/push-log`) +
+Audit-Collection `tenant_push_log` (superuser-only) + UI im Detail-Modal.
+
+- **Effektive Vorlage serverseitig autoritativ** gebaut (Master ⊕ Overlay ⊕ Personalisierung) —
+  nicht dem Client vertraut. `kategorie` Verwaltung→`utility`, Marketing→`marketing`; Sprache `de`.
+- **Preview-zuerst (`action:"preview"`, KEINE Writes):** zeigt exakt Name/Kategorie/Sprache/Ordner/
+  Buttons/Variablen/Warnungen. Bestätigung im UI, dann `action:"submit"`.
+- **Ordner reuse-or-create:** `GET /template-folders` (Reuse) bzw. `POST /template-folders` (anlegen) → `folder_id`.
+- **Submit:** `POST /v1.0/templates` (X-API-Key, WABA-ID, content, folder_id) → Status pending/approved/rejected.
+- **Audit-Log** je Submit in `tenant_push_log`. Medien-Header → Warnung (nicht auto-übertragbar).
+- Key: stored→serverseitig entschlüsselt; session→`sessionKey` aus dem Request.
+
+### Akzeptanzkriterien (Slice 2)
+- [x] Effektive Vorlage serverseitig gebaut + personalisiert (Firma + Links) — Preview verifiziert (Muster GmbH, muster-gmbh.de)
+- [x] Preview ohne Writes; Compliance-Bestätigung vor Submit (UI)
+- [x] Ordner-Auflösung (reuse-or-create) — Folder-List gegen echte SuperChat-API verifiziert
+- [x] Audit-Log-Collection `tenant_push_log` + `GET /api/vor/push-log`
+- [x] JSON-Felder korrekt gelesen (PocketBase JSONRaw → `JSON.parse(String(v))`)
+- [ ] **Live-Submit gegen Meta** — bewusst NICHT in Dev ausgeführt (reicht real bei Meta ein, Quota/Quality).
+      Braucht EINEN gezielten Operator-Test mit echter WABA-ID. Code folgt der dokumentierten API.
 
 ## Slice 3 (separat) — Bulk-Push
 Alle Vorlagen, Pro-Vorlage-Status, Rate-/Fehler-Handling (SuperChat-Limits, Teil-Fehlschläge).

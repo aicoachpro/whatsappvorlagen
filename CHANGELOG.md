@@ -8,6 +8,13 @@
 - **Kunden-UI** (`webui/`): Einstellungen-Abschnitt „SuperChat-Verbindung" (Key write-only, WABA-ID, Modus-Wahl, Prüfen & Speichern, Entfernen).
 - **Befund:** SuperChat hat **kein „Entwurf"** — `POST /templates` reicht direkt bei Meta zur Freigabe ein (Slice 2). Ordner per `POST /template-folders` + `folder_id` automatisierbar.
 
+### SuperChat-Push = Meta-Einreichung (VOR-9, Slice 2)
+- **`pb_hooks/superchat_push.pb.js`** — Routen `POST /api/vor/push-template` (action `preview`/`submit`) + `GET /api/vor/push-log`. Baut die **effektive Vorlage serverseitig autoritativ** (Master ⊕ Overlay ⊕ Personalisierung), löst Ordner reuse-or-create (`folder_id`), reicht via `POST /v1.0/templates` bei Meta ein (Status pending/approved/rejected).
+- **`tenant_push_log`** (superuser-only) — Audit je Einreichung; Setup in `agents/setup-tenant-secrets.js`.
+- **Kunden-UI:** Detail-Modal „📤 Direkt an SuperChat einreichen" — Preview (zeigt exakt was gesendet wird, keine Writes) → Compliance-Bestätigung → verbindliches Einreichen + Status.
+- **Verifiziert:** Preview + Personalisierung + Folder-List gegen echte SuperChat-API (lokal). **Live-Submit bewusst nicht in Dev ausgeführt** (reicht real bei Meta ein) — braucht gezielten Operator-Test.
+- **JSVM-Fix:** PocketBase liefert JSON-Felder als Roh-Bytes → über `JSON.parse(String(v))` lesen.
+
 ## 2026-06-19
 
 ### Issue-Tracker Linear → Huly migriert

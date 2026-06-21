@@ -207,6 +207,12 @@ function openModal(id) {
           <div class="sc-btns">${t.buttons.map((b, i) => `<div class="sc-btn"><span class="btn-pos">${i + 1}</span> Typ <b>${esc(btnTypeLabel(b.type))}</b>, Label <button class="copy-row inline" data-cb="${i}">📋 „${esc(b.title || '')}"</button>${b.target ? ` · Wert: ${esc(b.target)}` : ''}</div>`).join('')}</div></li>` : ''}
       </ol>
     </div>
+    <div class="copy-block" id="push-block">
+      <h3>📤 Direkt an SuperChat einreichen</h3>
+      <p class="placeholder">Reicht diese Vorlage in deinem SuperChat-Account zur <b>Meta-Freigabe</b> ein (kein Entwurf — Meta prüft sie). Voraussetzung: SuperChat-Verbindung in den ⚙️ Einstellungen.</p>
+      <div class="actions"><button class="btn-save" id="push-btn">Vorschau &amp; einreichen</button></div>
+      <div id="push-panel" class="hidden"></div>
+    </div>
     <div class="edit">
       <h3>Deine Anpassungen</h3>
       <label>Eigener Text (überschreibt Vorlagentext)
@@ -223,6 +229,7 @@ function openModal(id) {
     </div>`;
   $('#modal').classList.remove('hidden');
   $('#f-save').onclick = () => saveOverlay(base.id);
+  $('#push-btn').onclick = () => pushPreview(base.id);
   if ($('#f-reset')) $('#f-reset').onclick = () => resetOverlay(base.id);
   if ($('#copy-body')) $('#copy-body').onclick = () => copyText(t.body, $('#copy-body'), '📋 Vorlagentext kopieren');
   if ($('#copy-footer')) $('#copy-footer').onclick = () => copyText(t.footer, $('#copy-footer'), '📋 Fußzeile kopieren');
@@ -234,6 +241,60 @@ async function copyText(text, btnEl, restore) {
   if (btnEl) { btnEl.textContent = '✓ kopiert'; btnEl.classList.add('copied'); setTimeout(() => { btnEl.textContent = restore; btnEl.classList.remove('copied'); }, 1300); }
 }
 function closeModal() { $('#modal').classList.add('hidden'); }
+
+/* ─── Push nach SuperChat = Einreichen bei Meta (VOR-9 Slice 2) ─────────────── */
+// AI-generated: VOR-9 — Vorschau (serverseitig gebaute effektive Vorlage), KEINE Writes
+async function pushPreview(id) {
+  const panel = $('#push-panel'); panel.classList.remove('hidden');
+  panel.innerHTML = '<p class="sub">Vorschau lädt…</p>';
+  try {
+    const r = await api('POST', '/api/vor/push-template', { templateId: id, action: 'preview' });
+    if (!r.ok) {
+      const hint = /Verbindung/.test(r.error || '') ? ' → trag deine SuperChat-API in den ⚙️ Einstellungen ein.' : '';
+      panel.innerHTML = `<p class="error">${esc(r.error || 'Fehler')}${hint}</p>`;
+      return;
+    }
+    const p = r.preview;
+    const folderTxt = p.folderName
+      ? (p.folderExists ? `Ordner „${esc(p.folderName)}" (vorhanden)` : `Ordner „${esc(p.folderName)}" (wird neu angelegt)`)
+      : 'kein Ordner';
+    const warn = (p.warnings || []).map(w => `<li class="error">${esc(w)}</li>`).join('');
+    panel.innerHTML = `
+      <div class="push-preview">
+        <p><b>Das wird bei Meta zur Freigabe eingereicht:</b></p>
+        <ul class="sc-steps">
+          <li>Name: <b>${esc(p.name)}</b></li>
+          <li>Kategorie: <b>${esc(p.category)}</b> · Sprache: <b>${esc(p.language)}</b></li>
+          <li>${folderTxt}</li>
+          <li>${p.buttonCount} Button(s), ${p.variableCount} Variable(n)</li>
+          ${warn}
+        </ul>
+        <p class="placeholder">⚠️ Verbindlich: Meta prüft die Vorlage (kann abgelehnt werden, zählt gegen dein Template-Limit).</p>
+        <div class="actions">
+          <button class="btn-save" id="push-go">Jetzt verbindlich einreichen</button>
+          <button class="btn-reset" id="push-cancel">Abbrechen</button>
+        </div>
+        <div id="push-msg" class="hidden"></div>
+      </div>`;
+    $('#push-go').onclick = () => pushSubmit(id);
+    $('#push-cancel').onclick = () => { panel.classList.add('hidden'); panel.innerHTML = ''; };
+  } catch (e) { panel.innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
+}
+// AI-generated: VOR-9 — verbindliches Einreichen bei Meta (session-Key falls Modus „nur Sitzung")
+async function pushSubmit(id) {
+  const msg = $('#push-msg'), btn = $('#push-go');
+  msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Reicht ein…';
+  try {
+    const sessionKey = sessionStorage.getItem('sc_session_key') || '';
+    const r = await api('POST', '/api/vor/push-template', { templateId: id, action: 'submit', sessionKey });
+    if (r.ok) {
+      msg.className = 'ok-msg';
+      msg.textContent = `✓ Eingereicht — Status: ${esc(r.status || 'pending')}${r.folderAssigned ? ' · Ordner zugeordnet' : ''}. Meta prüft die Vorlage.`;
+      btn.classList.add('hidden');
+    } else { msg.className = 'error'; msg.textContent = 'Fehler: ' + esc(r.error || 'unbekannt'); }
+  } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Jetzt verbindlich einreichen'; }
+}
 
 async function saveOverlay(templateId) {
   const data = {

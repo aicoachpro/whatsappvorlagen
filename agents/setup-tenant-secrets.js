@@ -87,12 +87,37 @@ async function ensureTenantSecrets(tenantsId) {
   return c;
 }
 
+// AI-generated: VOR-9 (Slice 2) — Audit-Log der Meta-Einreichungen (superuser-only)
+async function ensurePushLog(tenantsId, templatesId) {
+  let c = await getCollection('tenant_push_log');
+  if (c) { console.log('  tenant_push_log: vorhanden'); return c; }
+  if (DRY_RUN) { console.log('  tenant_push_log: WÜRDE anlegen (superuser-only)'); return { id: 'DRY' }; }
+  c = await pb('POST', '/api/collections', {
+    name: 'tenant_push_log', type: 'base',
+    fields: [
+      { name: 'tenant',         type: 'relation', required: true, collectionId: tenantsId, maxSelect: 1, cascadeDelete: true },
+      { name: 'template',       type: 'relation', required: false, collectionId: templatesId, maxSelect: 1, cascadeDelete: false },
+      { name: 'template_name',  type: 'text' },
+      { name: 'sc_template_id', type: 'text' },
+      { name: 'status',         type: 'text' },
+      { name: 'error',          type: 'text' },
+    ],
+    // superuser/hooks only — der Hook schreibt; Lesen für Kunde via Hook-Route.
+    listRule: null, viewRule: null, createRule: null, updateRule: null, deleteRule: null,
+  });
+  console.log('  tenant_push_log: NEU angelegt (superuser-only)');
+  return c;
+}
+
 (async () => {
   console.log(`\n[TenantSecrets] Auth gegen ${PB_URL} ...`);
   await pbAuth();
-  console.log(`[TenantSecrets] ${DRY_RUN ? '(DRY-RUN) ' : ''}Richte tenant_secrets ein ...`);
+  console.log(`[TenantSecrets] ${DRY_RUN ? '(DRY-RUN) ' : ''}Richte tenant_secrets + tenant_push_log ein ...`);
   const tenants = await getCollection('tenants');
   if (!tenants) throw new Error('tenants-Collection fehlt — zuerst setup-pb-tenancy.js laufen lassen');
+  const templates = await getCollection('templates');
+  if (!templates) throw new Error('templates-Collection fehlt — zuerst Superchat-Sync laufen lassen');
   await ensureTenantSecrets(tenants.id);
+  await ensurePushLog(tenants.id, templates.id);
   console.log('\n[TenantSecrets] Fertig. Hinweis: pb_hooks brauchen SUPERCHAT_ENC_KEY (32 Zeichen) in der Server-Env.\n');
 })().catch(err => { console.error('[TenantSecrets] Fatal:', err.message || err); process.exit(1); });
