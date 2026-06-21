@@ -52,8 +52,9 @@ Der Agent braucht gültige `PB_ADMIN_EMAIL`/`PB_ADMIN_PASSWORD` (Superuser) in `
 
 ## Server-Hooks deployen (`pb_hooks/`) — einmalig im Terminal
 Der Auto-Deploy liefert nur `webui/` → `pb_public/` aus, **nicht** `pb_hooks/`. Die Hooks
-(`personalize_mail` = Vorname-Anrede, VOR-12; `superchat_creds`/`superchat_push` = SuperChat-Push, VOR-9)
-müssen einmalig in `/opt/vorlagen-pb/pb_hooks/` kopiert werden. **Hostinger hPanel → VPS → Browser-Terminal**
+(`personalize_mail` = Vorname-Anrede VOR-12; `telegram_notify` = Registrierung/Verlängerung VOR-14;
+`superchat_creds`/`superchat_push` = SuperChat-Push VOR-9) müssen in `/opt/vorlagen-pb/pb_hooks/`
+kopiert werden — **bei jeder Hook-Änderung erneut** (eine Zeile, siehe unten). **Hostinger hPanel → VPS → Browser-Terminal**
 (als root), diesen Block einfügen:
 
 ```bash

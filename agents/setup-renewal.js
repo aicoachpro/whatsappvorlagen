@@ -74,6 +74,12 @@ const USERS_AUTH = 'role = "admin" || tenant.status = "active" || tenant.status 
   if (users.authRule !== USERS_AUTH) { await pb('PATCH', `/api/collections/${users.id}`, { authRule: USERS_AUTH }); console.log('  users.authRule gesetzt (expired darf rein)'); }
   else console.log('  users.authRule bereits gesetzt');
 
+  // VOR-14: registered_at-Feld für Registrierungs-Erkennung (Erst-Login)
+  if (!(users.fields || []).some(f => f.name === 'registered_at')) {
+    await pb('PATCH', `/api/collections/${users.id}`, { fields: [...users.fields, { name: 'registered_at', type: 'text' }] });
+    console.log('  users.registered_at-Feld ergänzt');
+  } else console.log('  users.registered_at vorhanden');
+
   let rr = await getColl('renewal_requests');
   if (!rr) {
     const ADMIN = '@request.auth.role = "admin"';

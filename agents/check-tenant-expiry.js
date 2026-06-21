@@ -81,10 +81,18 @@ async function telegram(text) {
   // pro Tenant nur einmal melden
   const seenT = new Set(); renewals = renewals.filter(r => (seenT.has(r.tenant) ? false : seenT.add(r.tenant)));
 
-  console.log(`[Expiry] geprüft: ${tenants.length} Mandanten | bald ab: ${soon.length} | soeben gesperrt: ${justExpired.length} | Verlängerung angefragt: ${renewals.length}`);
-  if (!soon.length && !justExpired.length && !renewals.length) { console.log('[Expiry] nichts zu melden.'); return; }
+  // VOR-14: neu registrierte Kunden (registered_at in den letzten ~26h)
+  const regCut = Date.now() - 26 * 3600 * 1000;
+  const registered = users.filter(u => u.role !== 'admin' && u.registered_at && new Date(u.registered_at).getTime() >= regCut);
+
+  console.log(`[Expiry] geprüft: ${tenants.length} | bald ab: ${soon.length} | gesperrt: ${justExpired.length} | Verlängerung: ${renewals.length} | neu registriert: ${registered.length}`);
+  if (!soon.length && !justExpired.length && !renewals.length && !registered.length) { console.log('[Expiry] nichts zu melden.'); return; }
 
   let msg = '🔔 WhatsApp-Vorlagen — Kunden-Lizenzen\n';
+  if (registered.length) {
+    msg += '\n🎉 Neu registriert (Einladung angenommen):\n';
+    for (const u of registered) { const t = tById[u.tenant]; msg += `• ${t ? (t.firma || t.name) : '?'} (${u.email})\n`; }
+  }
   if (renewals.length) {
     msg += '\n💶 Verlängerung ANGEFRAGT (Kunde wartet):\n';
     for (const r of renewals) { const t = tById[r.tenant]; msg += `• ${t.firma || t.name} (${mailByTenant[r.tenant] || '?'})\n`; }
