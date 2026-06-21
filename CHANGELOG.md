@@ -1,5 +1,13 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-06-21
+
+### Per-Tenant SuperChat-Key — verschlüsselt (VOR-9, Slice 1)
+- **`agents/setup-tenant-secrets.js`** — neue **superuser-only** Collection `tenant_secrets` (`sc_api_key_enc`, `waba_id`, `mode`); Browser kommt nie direkt ran.
+- **`pb_hooks/superchat_creds.pb.js`** — neues serverseitiges Bauteil (PocketBase-JS-Hooks): Routen `POST/GET/DELETE /api/vor/superchat-key`. Validiert den Key per SuperChat-Test-Call, **verschlüsselt** ihn at-rest (AES-256-GCM via `$security.encrypt`, Schlüssel `SUPERCHAT_ENC_KEY` nur in Server-Env), gibt **nie** den Klartext zurück. Modi: `stored` (1-Klick) / `session` (nicht speichern).
+- **Kunden-UI** (`webui/`): Einstellungen-Abschnitt „SuperChat-Verbindung" (Key write-only, WABA-ID, Modus-Wahl, Prüfen & Speichern, Entfernen).
+- **Befund:** SuperChat hat **kein „Entwurf"** — `POST /templates` reicht direkt bei Meta zur Freigabe ein (Slice 2). Ordner per `POST /template-folders` + `folder_id` automatisierbar.
+
 ## 2026-06-19
 
 ### Issue-Tracker Linear → Huly migriert

@@ -27,6 +27,22 @@ scp webui/*.html webui/*.js webui/*.css root@187.124.165.1:/opt/vorlagen-pb/pb_p
 > Hinweis: SSH-Verbindungen drosseln — der Hostinger-Netzwerkschutz sperrt die Quell-IP
 > bei zu vielen SSH-Verbindungen in kurzer Zeit (Port 443 bleibt erreichbar).
 
+## Server-Hooks deployen (`pb_hooks/`, VOR-9)
+Die Per-Tenant-SuperChat-Anbindung läuft als PocketBase-JS-Hook serverseitig.
+```bash
+scp ../../pb_hooks/*.pb.js root@187.124.165.1:/opt/vorlagen-pb/pb_hooks/
+docker compose restart   # Hooks werden beim Start geladen
+```
+**Pflicht-Env `SUPERCHAT_ENC_KEY`** (genau 32 Zeichen) — Schlüssel zum Ver-/Entschlüsseln der
+Kunden-API-Keys (AES-256-GCM). Liegt NUR in der Server-Env, **nie** in der DB/Git. In
+`docker-compose.yml` unter `vorlagen-pb` ergänzen:
+```yaml
+    environment:
+      - SUPERCHAT_ENC_KEY=<32-Zeichen-Schlüssel>   # z. B. openssl rand -hex 16
+```
+> Schlüssel rotieren = alle gespeicherten Kunden-Keys werden unlesbar (Kunden müssen neu hinterlegen).
+> Optional `SUPERCHAT_BASE_URL` (Default `https://api.superchat.com/v1.0`).
+
 ## Backup (empfohlen: täglicher Cron auf dem Server)
 PocketBase-Datastore sichern (DB + Vorschaubilder). `crontab -e` als root:
 ```cron

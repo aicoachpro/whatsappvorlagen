@@ -43,18 +43,20 @@ Für Per-Kunde-Key braucht es **serverseitige** Ver-/Entschlüsselung + Outbound
 ## Slice 1 (DIESE Spec) — Einstellungen: Key + WABA-ID + Validierung
 Kein Meta-Versand. Liefert genau das fehlende Eingabefeld + sichere Speicherung.
 
-### Akzeptanzkriterien (Slice 1)
-- [ ] Collection `tenant_secrets` (superuser-only Rules), idempotenter Setup-Agent
-- [ ] `pb_hooks` Route `POST /api/vor/superchat-key` (requireAuth, tenant-scoped):
-      validiert Key via SuperChat-Test-Call, verschlüsselt (mode=stored) oder verwirft (mode=session),
-      upsert `tenant_secrets`. Gibt nur `{ok, validated, masked, wabaId, mode}` zurück — **nie den Key**.
-- [ ] `GET /api/vor/superchat-key` (requireAuth): Status `{configured, masked, wabaId, mode}` ohne Klartext
-- [ ] `DELETE /api/vor/superchat-key` (requireAuth): entfernt die Anbindung
-- [ ] WABA-ID-Format `waba_…` (Pattern-Check)
-- [ ] UI in Einstellungen: „SuperChat-Verbindung" (Key-Feld write-only, WABA-Feld, Modus-Wahl,
-      „Prüfen & speichern", Status/„Entfernen")
-- [ ] Mandantentrennung: Kunde sieht/setzt nur eigene Anbindung; kein Key im Log/Response
-- [ ] Doku + Git Push
+### Akzeptanzkriterien (Slice 1) — lokal verifiziert 2026-06-21
+- [x] Collection `tenant_secrets` (superuser-only Rules), idempotenter Setup-Agent — `agents/setup-tenant-secrets.js`
+- [x] `POST /api/vor/superchat-key`: validiert via Test-Call, verschlüsselt (stored) / verwirft (session),
+      upsert, gibt nur `{ok, validated, masked, wabaId, mode}` zurück — Test: gültiger Key → validated:true, `••••5d28`
+- [x] `GET /api/vor/superchat-key`: Status `{configured, mode, wabaId, hasStoredKey}` ohne Klartext
+- [x] `DELETE /api/vor/superchat-key`: entfernt die Anbindung
+- [x] WABA-ID-Format `waba_…` (Pattern-Check) — Test: falsche WABA → 400
+- [x] UI in Einstellungen: „SuperChat-Verbindung" (Key write-only, WABA-Feld, Modus-Wahl, Prüfen & Speichern, Entfernen)
+- [x] Mandantentrennung: tenant aus `e.auth.tenant`; kein Key im Log/Response; at-rest Cipher ≠ Klartext (verifiziert)
+- [x] Doku + Git Push
+
+> **PocketBase-JSVM-Lesson:** Route-Handler laufen in isolierten VMs — Top-Level-Funktionen der
+> `.pb.js`-Datei sind im Handler NICHT sichtbar (`tenantOf is not defined`). Helfer müssen IN den
+> Handler inlined (oder via `require`). Globals `$app/$os/$security/$http/$apis` sind immer da.
 
 ### Umsetzung
 1. `agents/setup-tenant-secrets.js` (idempotent, Muster wie setup-tenant-settings.js).
@@ -85,6 +87,7 @@ Alle Vorlagen, Pro-Vorlage-Status, Rate-/Fehler-Handling (SuperChat-Limits, Teil
 - [ ] Huly-Issue-Kommentar mit AC-Verifikation
 
 ## Session-Referenz
-<!-- /implement trägt hier Session-Infos ein -->
-- Datum: …
-- Commits: …
+- Datum: 2026-06-21
+- Slice 1 lokal gegen PocketBase 0.37.5 + echte SuperChat-API verifiziert (alle 6 Testfälle grün)
+- Dateien: `agents/setup-tenant-secrets.js`, `pb_hooks/superchat_creds.pb.js`, `webui/app.js`
+- Commits: siehe Git-Historie (VOR-9 Slice 1)

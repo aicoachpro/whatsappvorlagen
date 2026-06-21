@@ -476,8 +476,85 @@ function openSettings() {
         <textarea id="s-more" placeholder="alter Text = neuer Text">${esc(more)}</textarea></label>
       <div class="actions"><button class="btn-save" id="s-save">Speichern</button></div>
       <div id="s-msg" class="hidden"></div>
+    </div>
+
+    <h3 style="margin-top:18px">SuperChat-Verbindung</h3>
+    <p class="placeholder">Hinterlege deine eigene SuperChat-API, um Vorlagen später per Knopfdruck in deinen Account einzureichen. Der Schlüssel wird verschlüsselt gespeichert und niemals angezeigt.</p>
+    <div class="edit" id="sc-conn">
+      <div id="sc-status" class="sub">lädt…</div>
+      <label>SuperChat-API-Key
+        <input type="password" id="sc-key" autocomplete="off" placeholder="Key aus SuperChat → Einstellungen › Integrationen › API-Key"></label>
+      <label>WhatsApp Business Account-ID (WABA-ID)
+        <input type="text" id="sc-waba" autocomplete="off" placeholder="waba_xxxxxxxxxxxxxxxxxxxxx"></label>
+      <label>Speichern als
+        <select id="sc-mode">
+          <option value="stored">🔒 Verschlüsselt speichern (1-Klick-Push jederzeit)</option>
+          <option value="session">⏱️ Nur diese Sitzung (nicht speichern)</option>
+        </select></label>
+      <div class="actions">
+        <button class="btn-save" id="sc-save">Prüfen &amp; speichern</button>
+        <button class="btn-reset hidden" id="sc-del">Entfernen</button>
+      </div>
+      <div id="sc-msg" class="hidden"></div>
     </div>`;
   $('#s-save').onclick = saveSettings;
+  $('#sc-save').onclick = saveSuperchatKey;
+  $('#sc-del').onclick = deleteSuperchatKey;
+  loadSuperchatStatus();
+}
+
+/* ─── SuperChat-Verbindung (VOR-9 Slice 1) ─────────────────────────────────── */
+// AI-generated: VOR-9 — Status laden (nie Klartext-Key)
+async function loadSuperchatStatus() {
+  const el = $('#sc-status'); const del = $('#sc-del');
+  try {
+    const s = await api('GET', '/api/vor/superchat-key');
+    if (s.configured) {
+      const modeLbl = s.mode === 'session' ? 'nur Sitzung' : (s.hasStoredKey ? 'verschlüsselt gespeichert' : 'kein Key gespeichert');
+      el.innerHTML = `✅ Verbunden — WABA <code>${esc(s.wabaId || '')}</code> · ${esc(modeLbl)}. Zum Ändern Key neu eingeben.`;
+      del.classList.remove('hidden');
+      if (s.wabaId) $('#sc-waba').value = s.wabaId;
+      if (s.mode) $('#sc-mode').value = s.mode;
+    } else {
+      el.textContent = 'Noch keine SuperChat-Verbindung hinterlegt.';
+      del.classList.add('hidden');
+    }
+  } catch (e) { el.textContent = 'Status nicht verfügbar.'; }
+}
+// AI-generated: VOR-9 — Key validieren + speichern via Server-Hook
+async function saveSuperchatKey() {
+  const apiKey = $('#sc-key').value.trim();
+  const wabaId = $('#sc-waba').value.trim();
+  const mode = $('#sc-mode').value;
+  const msg = $('#sc-msg'), btn = $('#sc-save');
+  msg.className = 'hidden';
+  if (!apiKey) { msg.className = 'error'; msg.textContent = 'Bitte API-Key eingeben.'; return; }
+  btn.disabled = true; btn.textContent = 'Prüfe…';
+  try {
+    const r = await api('POST', '/api/vor/superchat-key', { apiKey, wabaId, mode });
+    if (r.ok && r.validated) {
+      $('#sc-key').value = '';
+      if (mode === 'session') sessionStorage.setItem('sc_session_key', apiKey);
+      else sessionStorage.removeItem('sc_session_key');
+      msg.className = 'ok-msg';
+      msg.textContent = `✓ Verbunden (${esc(r.masked)}) — ${mode === 'stored' ? 'verschlüsselt gespeichert' : 'nur für diese Sitzung'}.`;
+      loadSuperchatStatus();
+    } else {
+      msg.className = 'error'; msg.textContent = 'Fehler: ' + (r.error || 'Key nicht akzeptiert.');
+    }
+  } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Prüfen & speichern'; }
+}
+// AI-generated: VOR-9 — Anbindung entfernen
+async function deleteSuperchatKey() {
+  const msg = $('#sc-msg');
+  try {
+    await api('DELETE', '/api/vor/superchat-key');
+    sessionStorage.removeItem('sc_session_key');
+    msg.className = 'ok-msg'; msg.textContent = '✓ Verbindung entfernt.';
+    $('#sc-waba').value = '';
+    loadSuperchatStatus();
+  } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
 }
 async function saveSettings() {
   const firma = $('#s-firma').value.trim();

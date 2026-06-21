@@ -19,11 +19,13 @@ Datei-Register. Jede neue Datei wird hier UND in [ARCHITECTURE_DESIGN.md §6](AR
 - [specs/UI-REVIEW.md](specs/UI-REVIEW.md) — 6-Säulen-UI-Audit
 - [specs/TEMPLATE.md](specs/TEMPLATE.md) — Spec-Vorlage
 - [specs/VOR-8.md](specs/VOR-8.md) — Kunden-Self-Service: Firma + Links (`tenant_settings`)
+- [specs/VOR-9.md](specs/VOR-9.md) — Per-Tenant SuperChat-Key (verschlüsselt) + Meta-Push; Slice 1: `tenant_secrets` + `pb_hooks/`
 
 ## Code
 - `lib/` — config.js (SSoT), doc-sync.js
 - `agents/` — Superchat-/Notion-Sync, Datenqualität, PocketBase-Setup, Self-Healing, Previews
 - `webui/` — Kunden-UI (index.html, app.js, styles.css)
+- `pb_hooks/` — serverseitige PocketBase-JS-Hooks (z. B. `superchat_creds.pb.js`: verschlüsselte Per-Tenant-Anbindung, VOR-9)
 - `tests/` — tenant-isolation.js
 - `deploy/vorlagen/` — docker-compose.yml, README.md (Setup/Backup/Restore)
 
