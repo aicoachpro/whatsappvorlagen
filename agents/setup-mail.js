@@ -73,13 +73,18 @@ async function pb(method, p, body) {
 }
 
 // AI-generated: VOR-11 — deutsches Reset-/Willkommens-Template; Link auf die Kunden-UI
-const RESET_SUBJECT = 'Dein Zugang zu WhatsApp-Vorlagen — Passwort setzen';
+const RESET_SUBJECT = 'Deine neue WhatsApp-Vorlagen-App — Zugang & Start';
 const RESET_BODY =
   '<p>Hallo,</p>\n' +
-  '<p>klicke auf den Button, um dein Passwort für die WhatsApp-Vorlagen-Plattform zu setzen.</p>\n' +
-  '<p><a class="btn" href="{APP_URL}/?reset={TOKEN}" target="_blank" rel="noopener">Passwort setzen</a></p>\n' +
-  '<p>Der Link ist zeitlich begrenzt gültig. Falls du das nicht angefordert hast, ignoriere diese E-Mail.</p>\n' +
-  '<p>Dein WhatsApp-Vorlagen-Team</p>';
+  '<p>ab sofort läuft die Verwaltung deiner WhatsApp-Vorlagen in einer <strong>eigenen App</strong> statt über Notion. Deine Vorteile:</p>\n' +
+  '<ul>\n' +
+  '  <li><strong>Mehr Einstellungen</strong> – Firma, eigene Links und eigene Anpassungen pro Vorlage.</li>\n' +
+  '  <li><strong>Automatisierung per Knopfdruck</strong> – hinterlegst du deine SuperChat-API, überträgst du Vorlagen mit einem Klick in deinen SuperChat-Account (kein Abtippen mehr).</li>\n' +
+  '</ul>\n' +
+  '<p><strong>So startest du:</strong> klicke auf den Button, vergib dein eigenes Passwort und logge dich dann mit deiner E-Mail ein.</p>\n' +
+  '<p><a class="btn" href="{APP_URL}/?reset={TOKEN}" target="_blank" rel="noopener">Passwort setzen &amp; loslegen</a></p>\n' +
+  '<p>Ein kurzes Erklär-Video folgt in Kürze. Bei Fragen einfach auf diese E-Mail antworten.</p>\n' +
+  '<p>Dein Völker-Team</p>';
 
 (async () => {
   console.log(`\n[Mail-Setup] Auth gegen ${PB_URL} ...`);

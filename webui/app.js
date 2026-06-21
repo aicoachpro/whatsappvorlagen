@@ -430,6 +430,13 @@ function renderAdmin(customers, tById) {
         <button type="button" class="btn-reset" id="c-gen">Passwort neu</button></div>
       <div id="c-msg" class="hidden"></div>
     </form>
+    <div class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
+      <h3>Kunden importieren (CSV)</h3>
+      <p class="placeholder">CSV mit Spalten <code>Kunde</code>, <code>Vertragsstart</code>, <code>E-Mail</code> (Semikolon-getrennt). <b>Bestehende E-Mails werden übersprungen.</b> Neue Kunden bekommen die Willkommens-Mail mit Passwort-Link.</p>
+      <input type="file" id="csv-file" accept=".csv,text/csv">
+      <div class="actions"><button type="button" class="btn-reset" id="csv-read">Vorschau</button></div>
+      <div id="csv-preview"></div>
+    </div>
     <h3>Bestehende Kunden</h3>
     <div class="cust-list">
       ${customers.length ? customers.map(u => {
@@ -449,6 +456,7 @@ function renderAdmin(customers, tById) {
   $('#c-invited').value = new Date().toISOString().slice(0, 10);
   $('#c-gen').onclick = () => { $('#c-pass').value = genPass(); };
   $('#cust-form').onsubmit = createCustomer;
+  $('#csv-read').onclick = csvImportPreview;
   $('#adm-pw-save').onclick = changeOwnPassword;
   $('#adm-pw-gen').onclick = () => { $('#adm-pass').value = genPass(); };
   $$('.cust-row .mini').forEach(b => b.onclick = (e) => {
@@ -529,6 +537,85 @@ async function createCustomer(e) {
     msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
   } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
 }
+/* ─── CSV-Bulk-Import (VOR-12) ──────────────────────────────────────────────── */
+// AI-generated: VOR-12 — Latin-1/Semikolon-CSV; Bestehende übersprungen; neue → anlegen + Willkommens-Mail
+function csvCellId(s) { return 'ci-' + s.replace(/[^a-z0-9]/gi, '_'); }
+function parseDeDate(s) {
+  const m = (s || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1], 12, 0, 0) : null; // 12:00 gegen TZ-Verschub
+}
+function parseCsvText(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim() && !/^;+$/.test(l.trim()));
+  let hi = lines.findIndex(l => /(^|;)\s*e-?mail\s*(;|$)/i.test(l));
+  if (hi < 0) hi = 0;
+  const head = lines[hi].split(';').map(h => h.trim().toLowerCase());
+  const col = (names) => head.findIndex(h => names.some(n => h === n || h.includes(n)));
+  const iEmail = col(['e-mail', 'email', 'e mail']);
+  const iName = col(['kunde', 'name']);
+  const iStart = col(['vertragsstart', 'vertragsdatum', 'start']);
+  const rows = [];
+  for (let i = hi + 1; i < lines.length; i++) {
+    const c = lines[i].split(';');
+    const email = (c[iEmail] || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) continue;
+    rows.push({ email, name: (c[iName] || '').trim(), start: iStart >= 0 ? (c[iStart] || '').trim() : '' });
+  }
+  return rows;
+}
+async function csvImportPreview() {
+  const f = $('#csv-file').files[0], box = $('#csv-preview');
+  if (!f) { box.innerHTML = '<p class="error">Bitte zuerst eine CSV-Datei wählen.</p>'; return; }
+  box.innerHTML = '<p class="sub">lese…</p>';
+  try {
+    const buf = await f.arrayBuffer();
+    const rows = parseCsvText(new TextDecoder('windows-1252').decode(buf));
+    const ul = await api('GET', '/api/collections/users/records?perPage=500&fields=email');
+    const have = new Set(ul.items.map(u => (u.email || '').toLowerCase()));
+    const seen = new Set();
+    for (const r of rows) { r.exists = have.has(r.email) || seen.has(r.email); seen.add(r.email); }
+    const neu = rows.filter(r => !r.exists);
+    box.innerHTML = `
+      <p class="sub">${rows.length} Zeilen — <b>${neu.length} neu</b>, ${rows.length - neu.length} bestehend (übersprungen)</p>
+      <div class="bp-list">${rows.map(r => `<div class="bp-row ${r.exists ? '' : 'bp-ok'}" id="${csvCellId(r.email)}">
+        <span class="bp-name">${esc(r.name || '—')} · ${esc(r.email)}</span>
+        <span class="bp-status">${r.exists ? 'bestehend' : esc(r.start || 'neu')}</span></div>`).join('')}</div>
+      <div class="actions"><button type="button" class="btn-save" id="csv-go" ${neu.length ? '' : 'disabled'}>${neu.length} neue Kunden anlegen &amp; einladen</button></div>
+      <div id="csv-sum" class="hidden"></div>`;
+    if (neu.length) $('#csv-go').onclick = () => { $('#csv-go').disabled = true; $('#csv-go').textContent = 'Läuft…'; runCsvImport(neu); };
+  } catch (e) { box.innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
+}
+async function createCustomerRow(r) {
+  const name = r.name || r.email.split('@')[0];
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+  const invited = parseDeDate(r.start) || new Date();
+  const exp = new Date(invited); exp.setDate(exp.getDate() + 365);
+  const pass = genPass();
+  const tenant = await api('POST', '/api/collections/tenants/records', {
+    name, slug, status: 'active', firma: name, ersetzungen: [],
+    invited_at: invited.toISOString(), expires_at: exp.toISOString(),
+  });
+  try {
+    await api('POST', '/api/collections/users/records', { email: r.email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
+    await api('POST', '/api/collections/tenant_settings/records', { tenant: tenant.id, firma: name, ersetzungen: [] }).catch(() => {});
+    await api('POST', '/api/collections/users/request-password-reset', { email: r.email });
+  } catch (e) {
+    await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
+    throw e;
+  }
+}
+async function runCsvImport(rows) {
+  let ok = 0, fail = 0;
+  for (const r of rows) {
+    const el = document.getElementById(csvCellId(r.email)), st = el && el.querySelector('.bp-status');
+    if (st) st.textContent = '… legt an';
+    try { await createCustomerRow(r); ok++; if (st) st.textContent = '✓ angelegt + Mail'; }
+    catch (e) { fail++; if (el) { el.classList.remove('bp-ok'); el.classList.add('bp-fail'); } if (st) st.textContent = '✗ ' + (e.message || 'Fehler'); }
+    await new Promise(res => setTimeout(res, 300)); // sanft gegen Rate-Limits/Mailversand
+  }
+  const sum = $('#csv-sum'); sum.className = fail ? 'error' : 'ok-msg';
+  sum.textContent = `Fertig: ${ok} angelegt + eingeladen${fail ? ', ' + fail + ' Fehler' : ''}.`;
+}
+
 // AI-generated: VOR-3 — Admin ändert sein EIGENES Passwort in der UI (kein Skript/DB-Eingriff)
 async function changeOwnPassword() {
   const oldP = $('#adm-old').value, np = $('#adm-pass').value.trim();

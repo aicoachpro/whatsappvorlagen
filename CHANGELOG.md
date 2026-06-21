@@ -2,6 +2,11 @@
 
 ## 2026-06-21
 
+### CSV-Bulk-Import + Migrations-Willkommensmail (VOR-12)
+- **CSV-Import im Admin** (`webui/app.js`): Datei (Latin-1/Semikolon) → Vorschau (neu vs. bestehend, Bestehende übersprungen) → „neue anlegen & einladen" mit Pro-Zeilen-Status. Mapping: `Kunde`→Name+Firma, `Vertragsstart`→Lizenzbeginn (+365), `E-Mail`→Login.
+- **Migrations-Mail** = reicheres `resetPasswordTemplate` (Notion→App, mehr Konfig, SuperChat-Knopfdruck, Video folgt, „Passwort setzen"-Link), gesendet über den eingebauten `request-password-reset`-Flow — **kein pb_hook/Terminal nötig**. Befund: PocketBase-JSVM 0.37 hat keine `$tokens`-Token-Funktion → separater Hook-Versand verworfen.
+- Absender-Name „Völker Vorlagen" (Spam-Trigger „WhatsApp" entfernt).
+
 ### E-Mail-Flows: Passwort-vergessen + Willkommens-Mail (VOR-11)
 - **Login:** „Passwort vergessen?" → PB `request-password-reset` (neutrale Meldung); **Reset-Seite** liest `?reset=TOKEN` und setzt neues Passwort via `confirm-password-reset`.
 - **Onboarding:** `createCustomer` löst automatisch eine Willkommens-Mail mit „Passwort setzen"-Link aus (kein Klartext per Mail); **Backup-Passwort** bleibt als Fallback sichtbar (funktioniert auch ohne SMTP).
