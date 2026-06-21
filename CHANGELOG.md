@@ -2,6 +2,9 @@
 
 ## 2026-06-21
 
+### Verifiziert & abgeschlossen: Per-Tenant Overlay-Edit (VOR-1)
+- Migrierte Story verifiziert + Spec nachgezogen (`specs/VOR-1.md`): effektive Galerie/Vorschau (`effective()`), tenant-scoped Overlay-Edit, Personalisierung (live im Browser), Cross-Tenant-Isolation via `tests/tenant-isolation.js`. Keine Code-Änderung — Doku/Abschluss.
+
 ### Admin: Eigen-Passwort + Vertragsdatum (VOR-3)
 - **Admin-Eigen-Passwort in der UI:** Abschnitt „Mein Admin-Zugang" — Admin setzt sein eigenes Passwort selbst (PATCH eigener Record mit `oldPassword`; kein Skript/DB-Eingriff mehr). PB-Verhalten verifiziert (ohne `oldPassword` → 400, mit → 200, Re-Login ok).
 - **Vertragsdatum beim Kunden-Anlegen:** neues `date`-Feld (Default heute) → `invited_at`; `expires_at` = Vertragsdatum + 365 Tage (Admin tippt kein Ablaufdatum).
