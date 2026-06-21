@@ -71,10 +71,24 @@ async function telegram(text) {
   }
   soon.sort((a, b) => a.d - b.d);
 
-  console.log(`[Expiry] geprüft: ${tenants.length} Mandanten | bald ab: ${soon.length} | soeben gesperrt: ${justExpired.length}`);
-  if (!soon.length && !justExpired.length) { console.log('[Expiry] nichts zu melden.'); return; }
+  // VOR-13: offene Verlängerungs-Anfragen (Tenant noch nicht wieder aktiv)
+  const tById = {}; for (const t of tenants) tById[t.id] = t;
+  let renewals = [];
+  try {
+    renewals = (await pb('GET', '/api/collections/renewal_requests/records?perPage=200')).items
+      .filter(r => !r.handled && tById[r.tenant] && tById[r.tenant].status !== 'active');
+  } catch (_) { renewals = []; }
+  // pro Tenant nur einmal melden
+  const seenT = new Set(); renewals = renewals.filter(r => (seenT.has(r.tenant) ? false : seenT.add(r.tenant)));
+
+  console.log(`[Expiry] geprüft: ${tenants.length} Mandanten | bald ab: ${soon.length} | soeben gesperrt: ${justExpired.length} | Verlängerung angefragt: ${renewals.length}`);
+  if (!soon.length && !justExpired.length && !renewals.length) { console.log('[Expiry] nichts zu melden.'); return; }
 
   let msg = '🔔 WhatsApp-Vorlagen — Kunden-Lizenzen\n';
+  if (renewals.length) {
+    msg += '\n💶 Verlängerung ANGEFRAGT (Kunde wartet):\n';
+    for (const r of renewals) { const t = tById[r.tenant]; msg += `• ${t.firma || t.name} (${mailByTenant[r.tenant] || '?'})\n`; }
+  }
   if (soon.length) {
     msg += '\n⏰ Läuft bald ab (verlängern?):\n';
     for (const { t, d } of soon) msg += `• ${t.firma || t.name} (${mailByTenant[t.id] || '?'}) — in ${d} Tg. (${fmt(t.expires_at)})\n`;

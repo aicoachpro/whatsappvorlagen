@@ -373,13 +373,15 @@ async function openAdmin() {
   $('#admin').classList.remove('hidden');
   $('#admin-body').innerHTML = '<p class="sub">lädt…</p>';
   try {
-    const [tenants, users] = await Promise.all([
+    const [tenants, users, rr] = await Promise.all([
       api('GET', '/api/collections/tenants/records?perPage=500&sort=name'),
       api('GET', '/api/collections/users/records?perPage=500'),
+      api('GET', '/api/collections/renewal_requests/records?perPage=200').catch(() => ({ items: [] })),
     ]);
     const tById = Object.fromEntries(tenants.items.map(t => [t.id, t]));
+    const renewalSet = new Set((rr.items || []).filter(r => !r.handled).map(r => r.tenant));
     const customers = users.items.filter(u => u.role !== 'admin');
-    renderAdmin(customers, tById);
+    renderAdmin(customers, tById, renewalSet);
   } catch (e) { $('#admin-body').innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
 }
 function daysUntil(dateStr) {
@@ -394,7 +396,7 @@ function ablaufBadge(t) {
   if (d <= 14) return `<span class="badge mk">läuft in ${d} Tg. ab (${datum})</span>`;
   return `<span class="cust-sub">aktiv bis ${datum}</span>`;
 }
-function renderAdmin(customers, tById) {
+function renderAdmin(customers, tById, renewalSet = new Set()) {
   // ablaufende/abgelaufene zuerst
   customers.sort((a, b) => {
     const da = daysUntil(tById[a.tenant]?.expires_at) ?? 9999, db = daysUntil(tById[b.tenant]?.expires_at) ?? 9999;
@@ -444,7 +446,7 @@ function renderAdmin(customers, tById) {
         return `<div class="cust-row" data-uid="${u.id}" data-tid="${u.tenant || ''}">
           <div><div class="cust-mail">${esc(u.email)}</div>
             <div class="cust-sub">${esc(t?.firma || t?.name || '— kein Mandant')}</div>
-            <div style="margin-top:3px">${ablaufBadge(t)}</div></div>
+            <div style="margin-top:3px">${ablaufBadge(t)}${(renewalSet.has(u.tenant) && t && t.status !== 'active') ? ' <span class="badge mk">💶 Verlängerung angefragt</span>' : ''}</div></div>
           <div class="cust-act">
             ${t ? '<button class="mini" data-act="lz">Laufzeit</button>' : ''}
             ${t ? '<button class="mini" data-act="ext">+1 Jahr</button>' : ''}
@@ -883,6 +885,38 @@ async function boot() {
   $('#settings-btn').classList.toggle('hidden', !store.user?.tenant);
   await loadData(); render();
   refreshScButton();
+  maybeShowRenewal();
+}
+
+/* ─── Laufzeit abgelaufen → Verlängerung anfragen (VOR-13) ──────────────────── */
+// AI-generated: VOR-13
+function isExpiredTenant(t) {
+  return !!t && (t.status === 'expired' || (t.expires_at && new Date(t.expires_at) < new Date()));
+}
+function maybeShowRenewal() {
+  if (isAdmin() || !isExpiredTenant(STATE.tenant)) { $('#renewal').classList.add('hidden'); return; }
+  const t = STATE.tenant;
+  const datum = t.expires_at ? new Date(t.expires_at).toLocaleDateString('de-DE') : '';
+  $('#renewal-body').innerHTML = `
+    <h2>Laufzeit abgelaufen</h2>
+    <p class="sub">Dein Zugang ist ${datum ? 'am <b>' + esc(datum) + '</b> ' : ''}abgelaufen. Fordere eine Verlängerung an — wir melden uns und schalten dich wieder frei.</p>
+    <div class="actions">
+      <button class="btn-save" id="renew-go">Verlängerung anfragen</button>
+      <button class="btn-reset" id="renew-logout">Abmelden</button>
+    </div>
+    <div id="renew-msg" class="hidden"></div>`;
+  $('#renewal').classList.remove('hidden');
+  $('#renew-go').onclick = requestRenewal;
+  $('#renew-logout').onclick = () => { $('#renewal').classList.add('hidden'); logout(); };
+}
+async function requestRenewal() {
+  const btn = $('#renew-go'), msg = $('#renew-msg');
+  msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Sende…';
+  try {
+    await api('POST', '/api/collections/renewal_requests/records', { tenant: store.user.tenant });
+    msg.className = 'ok-msg'; msg.textContent = '✓ Anfrage gesendet. Wir melden uns und schalten dich wieder frei.';
+    btn.classList.add('hidden');
+  } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; btn.disabled = false; btn.textContent = 'Verlängerung anfragen'; }
 }
 
 document.addEventListener('click', (e) => {

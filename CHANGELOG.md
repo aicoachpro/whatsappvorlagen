@@ -2,6 +2,11 @@
 
 ## 2026-06-21
 
+### Kunden-Verlängerungs-Dialog (VOR-13)
+- Abgelaufene Kunden dürfen einloggen (`users.authRule` um `tenant.status="expired"` erweitert; suspended bleibt blockiert) und sehen ein Vollbild-Overlay „Laufzeit abgelaufen — Verlängerung anfragen" (`webui/`). Anfrage → neue Collection `renewal_requests` (`agents/setup-renewal.js`).
+- Admin-Kundenliste zeigt Badge „💶 Verlängerung angefragt"; täglicher Telegram-Job (`check-tenant-expiry.js`) meldet offene Anfragen (verstummt, sobald wieder aktiv).
+- Verlängerung bleibt Operator-Aktion (Anfrage-Modell, kein Self-Service).
+
 ### CSV-Bulk-Import + Migrations-Willkommensmail (VOR-12)
 - **CSV-Import im Admin** (`webui/app.js`): Datei (Latin-1/Semikolon) → Vorschau (neu vs. bestehend, Bestehende übersprungen) → „neue anlegen & einladen" mit Pro-Zeilen-Status. Mapping: `Kunde`→Name+Firma, `Vertragsstart`→Lizenzbeginn (+365), `E-Mail`→Login.
 - **Migrations-Mail** = reicheres `resetPasswordTemplate` (Notion→App, mehr Konfig, SuperChat-Knopfdruck, Video folgt, „Passwort setzen"-Link), gesendet über den eingebauten `request-password-reset`-Flow — **kein pb_hook/Terminal nötig**. Befund: PocketBase-JSVM 0.37 hat keine `$tokens`-Token-Funktion → separater Hook-Versand verworfen.
