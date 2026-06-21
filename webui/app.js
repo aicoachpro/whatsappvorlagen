@@ -618,7 +618,9 @@ async function runCsvImport(rows) {
     await new Promise(res => setTimeout(res, 300)); // sanft gegen Rate-Limits/Mailversand
   }
   const sum = $('#csv-sum'); sum.className = fail ? 'error' : 'ok-msg';
-  sum.textContent = `Fertig: ${ok} angelegt + eingeladen${fail ? ', ' + fail + ' Fehler' : ''}.`;
+  sum.textContent = `✓ Fertig: ${ok} angelegt + eingeladen${fail ? ', ' + fail + ' Fehler' : ''}. (Mails ggf. im Spam — „Kein Spam" markieren.)`;
+  const go = document.getElementById('csv-go');
+  if (go) { go.disabled = false; go.textContent = 'Erneut importieren'; }
 }
 
 // AI-generated: VOR-3 — Admin ändert sein EIGENES Passwort in der UI (kein Skript/DB-Eingriff)
