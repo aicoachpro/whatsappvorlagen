@@ -2,6 +2,11 @@
 
 ## 2026-06-21
 
+### Notion abgeschaltet (VOR-2)
+- Notion gekündigt & abgeklemmt. Gelöscht: `agents/sync-superchat-to-notion.js`, `agents/notion-enrich-to-pb.js`. `agents/test-env.js` Notion-Health-Check entfernt; `package.json` ohne `sync:notion`/`enrich:pb`, Beschreibung aktualisiert.
+- Doku-SSoTs bereinigt (CLAUDE.md, ARCHITECTURE_DESIGN, SYSTEM_ARCHITECTURE-„veraltet"-Banner, COMPONENT_INVENTORY, INDEX, SECURITY) — Notion nur noch Historie. PocketBase ist alleinige Auslieferungs-Plattform.
+- **Operator-Aktion:** `NOTION_TOKEN` + `NOTION_DATABASE_ID` aus `.env` entfernen.
+
 ### Verifiziert & abgeschlossen: Per-Tenant Overlay-Edit (VOR-1)
 - Migrierte Story verifiziert + Spec nachgezogen (`specs/VOR-1.md`): effektive Galerie/Vorschau (`effective()`), tenant-scoped Overlay-Edit, Personalisierung (live im Browser), Cross-Tenant-Isolation via `tests/tenant-isolation.js`. Keine Code-Änderung — Doku/Abschluss.
 

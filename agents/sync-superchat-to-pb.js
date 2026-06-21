@@ -1,9 +1,8 @@
 /**
  * agents/sync-superchat-to-pb.js — Mirror Superchat-Templates → PocketBase
  *
- * Phase 2 (VOE-238): Superchat ist Master, PocketBase ist die neue Mirror-/Auslieferungs-DB.
- * Läuft PARALLEL zum bestehenden Notion-Sync (sync-superchat-to-notion.js), bis Notion
- * in Phase 6 abgeschaltet wird.
+ * Phase 2 (VOE-238): Superchat ist Master, PocketBase ist die Mirror-/Auslieferungs-DB.
+ * (Notion-Sync war übergangsweise parallel aktiv — Notion in Phase 6 / VOR-2 abgeschaltet 2026-06-21.)
  *
  * - Legt die Collection `templates` idempotent an (falls nicht vorhanden).
  * - Upsert per `superchat_id`: schreibt NUR die Superchat-Felder.

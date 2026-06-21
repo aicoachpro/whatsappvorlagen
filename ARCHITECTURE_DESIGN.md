@@ -16,7 +16,7 @@ Superchat (Master) ──sync──▶ PocketBase (vorlagen.voelkergroup.cloud)
                             Kunden-UI (webui/)  +  Admin-Kundenverwaltung
 ```
 
-Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOR-2, ehem. VOE-242).
+Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, Scripts und Env-Token entfernt.
 
 ## §2 Design-Rationale ("Das Warum")
 
@@ -43,7 +43,7 @@ Notion läuft im Parallelbetrieb bis zur finalen Abschaltung (Phase 6 / VOR-2, e
 | Komponente | Pfad | Zweck |
 |---|---|---|
 | Superchat-Sync | `agents/sync-superchat-to-pb.js` | Master-Katalog → PocketBase |
-| Notion-Enrich / Header-Media / Ordner / Kategorie | `agents/{notion-enrich,sync-header-media,fill-ordner,derive-kategorie}-*.js` | Datenqualität |
+| Header-Media / Ordner / Kategorie | `agents/{sync-header-media,fill-ordner,derive-kategorie}-*.js` | Datenqualität |
 | Tenancy/User-Mgmt-Setup | `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js`, `agents/setup-tenant-settings.js`, `agents/setup-tenant-secrets.js` | Collections + API-Rules (inkl. `tenant_settings`, VOR-8; `tenant_secrets` superuser-only, VOR-9) |
 | Server-Hooks | `pb_hooks/superchat_creds.pb.js`, `pb_hooks/superchat_push.pb.js` | PocketBase-JS-Hooks: verschlüsselte Per-Tenant-Anbindung (AES-256-GCM, `SUPERCHAT_ENC_KEY`) + Push = Meta-Einreichung (effektive Vorlage serverseitig, Ordner-Auto, Audit `tenant_push_log`), VOR-9 |
 | Kunden-UI | `webui/` | Galerie, Overlay-Editor, Kundenverwaltung, SuperChat-Verbindung |

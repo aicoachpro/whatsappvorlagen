@@ -4,7 +4,11 @@
 
 ## Überblick
 
-Synchronisation WhatsApp-Vorlagen mit Notion. Bidirektionaler Abgleich zwischen WhatsApp Business API Templates und einer Notion-Datenbank.
+> ⚠️ **VERALTET (2026-06-21).** Dieses Dokument beschreibt das ursprüngliche Notion-Mirror-Design.
+> **Notion ist abgeschaltet (VOR-2).** Aktive Architektur: **[ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)** (Hub) —
+> Superchat (Master) → PocketBase-Kundenplattform. Der Inhalt unten bleibt als Historie erhalten.
+
+Synchronisation WhatsApp-Vorlagen mit Notion (historisch). Bidirektionaler Abgleich zwischen WhatsApp Business API Templates und einer Notion-Datenbank.
 
 ## Komponenten
 

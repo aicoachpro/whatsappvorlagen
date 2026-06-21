@@ -10,7 +10,7 @@ Datei-Register. Jede neue Datei wird hier UND in [ARCHITECTURE_DESIGN.md §6](AR
 
 ## Architektur & Governance
 - [ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md) — Hub
-- [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) — System-Architektur + Superchat-/Notion-Schema
+- [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) — ⚠️ veraltetes Notion-Design (Historie); aktiv: ARCHITECTURE_DESIGN.md
 - [GOVERNANCE.md](GOVERNANCE.md) · [SECURITY.md](SECURITY.md) · [DEVELOPMENT_PROCESS.md](DEVELOPMENT_PROCESS.md)
 - [COMPONENT_INVENTORY.md](COMPONENT_INVENTORY.md) · [CHANGELOG.md](CHANGELOG.md)
 
@@ -25,7 +25,7 @@ Datei-Register. Jede neue Datei wird hier UND in [ARCHITECTURE_DESIGN.md §6](AR
 
 ## Code
 - `lib/` — config.js (SSoT), doc-sync.js
-- `agents/` — Superchat-/Notion-Sync, Datenqualität, PocketBase-Setup, Self-Healing, Previews
+- `agents/` — Superchat→PocketBase-Sync, Datenqualität, PocketBase-Setup, Self-Healing, Previews
 - `webui/` — Kunden-UI (index.html, app.js, styles.css)
 - `pb_hooks/` — serverseitige PocketBase-JS-Hooks (z. B. `superchat_creds.pb.js`: verschlüsselte Per-Tenant-Anbindung, VOR-9)
 - `tests/` — tenant-isolation.js

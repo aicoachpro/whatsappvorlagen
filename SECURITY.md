@@ -7,8 +7,8 @@
 | Schlüssel | Speicherort | Niemals |
 |-----------|-------------|---------|
 | `LINEAR_API_KEY` | `.env` (lokal) | im Chat, Logs, Git |
-| `NOTION_TOKEN` | `.env` (lokal) | im Chat, Logs, Git |
 | `SUPERCHAT_API_KEY` | `.env` (lokal) | im Chat, Logs, Git |
+| `SUPERCHAT_ENC_KEY` | Server-Env (VPS) | im Chat, Logs, Git, DB |
 | `SUPERCHAT_INBOX_ID` | `.env` (lokal, nicht-secret aber privat) | im Chat, Logs, Git |
 | `TELEGRAM_BOT_TOKEN` | `.env` (lokal, optional) | im Chat, Logs, Git |
 
@@ -19,9 +19,8 @@
 
 | Bedrohung | Asset | Mitigation |
 |-----------|-------|------------|
-| Token-Leak (Superchat/Notion) | API-Credentials | Env-only, Logs-Sanitizer, Rotation alle 90 Tage |
+| Token-Leak (Superchat / Kunden-Keys) | API-Credentials | Env-only, Logs-Sanitizer, Kunden-Keys AES-256-GCM (`SUPERCHAT_ENC_KEY`), Rotation |
 | Versehentliches Versenden | Empfänger-PII | Dry-Run-Modus default, Approval vor Production-Send |
-| Notion-Sync-Conflict | Vorlagen-Daten | Atomic Write, Last-Write-Wins mit Audit-Log |
 | DSGVO-Verstoß | Empfänger-Telefonnummern | Nur verschlüsselt gespeichert, Maskierung in Logs |
 | Meta Policy Violation | WhatsApp Business Account | Pre-Send Compliance-Check (Template-Kategorie + Inhalt) |
 

@@ -11,11 +11,11 @@
 │   └── doc-sync.js        ← Obsidian Vault Sync
 ├── agents/
 │   ├── self-healing.js              ← Self-Healing Agent (Check M, U, P)
-│   ├── test-env.js                  ← .env Smoke-Test (Linear / Notion / Superchat / Telegram)
+│   ├── test-env.js                  ← .env Smoke-Test (Linear / Superchat / Telegram)
 │   ├── list-superchat-inboxes.js    ← Helper: listet Superchat-Inboxes (ID + Name)
 │   ├── list-superchat-templates.js  ← Helper: listet alle WA-Templates (paginiert)
 │   ├── render-template-preview.js   ← Helper: rendert WhatsApp-Bubble-Mockups (Puppeteer)
-│   └── sync-superchat-to-notion.js  ← Phase 1: Mirror Superchat → Notion (mit Vorschaubild)
+│   └── sync-superchat-to-pb.js      ← Mirror Superchat → PocketBase (Master-Katalog)
 ├── assets/
 │   └── previews/                    ← gerenderte Template-Vorschauen (PNG, nicht in Git)
 ├── package.json                     ← Dependencies (puppeteer)

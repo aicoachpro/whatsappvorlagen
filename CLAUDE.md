@@ -5,8 +5,8 @@
 
 ## Identität
 
-Synchronisation WhatsApp-Vorlagen mit Notion. **Superchat ist Master**, Notion ist die Auslieferungs-Mirror-DB für Kunden. Phase 1: Read-only Mirror Superchat → Notion. Phase 2: Knopfdruck-Push Notion → Superchat (löst manuellen 500-€-Service ab).
-> Stand: Notion wird durch eine selbstgehostete **PocketBase-Plattform** abgelöst (live unter vorlagen.voelkergroup.cloud). Aktueller Architektur-Stand: siehe **[ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)** (Hub).
+WhatsApp-Vorlagen-Plattform. **Superchat ist Master**, die selbstgehostete **PocketBase-Plattform** (live unter vorlagen.voelkergroup.cloud) ist die Auslieferungs-/Self-Service-DB für Kunden. Kern: Per-Tenant-Personalisierung + Overlay-Edit + Knopfdruck-Push der effektiven Vorlage zur Meta-Freigabe (löst manuellen 500-€-Service ab).
+> **Notion ist abgeschaltet (VOR-2, 2026-06-21)** — gekündigt, Code/Scripts/Env entfernt; nur noch Historie im Changelog. Aktueller Architektur-Stand: siehe **[ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)** (Hub).
 
 ## Pflichtlektüre (Framework v3.0 Kern-Upgrade)
 
