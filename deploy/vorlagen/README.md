@@ -27,6 +27,24 @@ scp webui/*.html webui/*.js webui/*.css root@187.124.165.1:/opt/vorlagen-pb/pb_p
 > Hinweis: SSH-Verbindungen drosseln — der Hostinger-Netzwerkschutz sperrt die Quell-IP
 > bei zu vielen SSH-Verbindungen in kurzer Zeit (Port 443 bleibt erreichbar).
 
+## E-Mail / Passwort-Reset (VOR-11) — PocketBase-Mail-Settings
+„Passwort vergessen" + Willkommens-Mail nutzen den **eingebauten PB-Mailversand**. Einmalig im
+PocketBase-Admin (`…cloud/_/`) unter **Settings → Mail settings** einrichten:
+1. **SMTP aktivieren** + Daten des eigenen Postfachs (voelker-Domain): Host, Port (465/587),
+   Username, Passwort, TLS. **Sender address** = z. B. `noreply@voelkergroup.cloud` (Domain sollte
+   SPF/DKIM haben → Zustellbarkeit).
+2. **Settings → Application → App URL** = `https://vorlagen.voelkergroup.cloud`.
+3. **Mail-Template „Password reset"** anpassen: der Aktions-Link muss auf die Kunden-UI zeigen:
+   ```
+   {APP_URL}/?reset={TOKEN}
+   ```
+   (Die webui liest `?reset=TOKEN` und zeigt die „Passwort setzen"-Seite.) Betreff/Text generisch
+   halten (dient für „Passwort vergessen" UND Willkommens-Mail).
+4. **Test:** im Login „Passwort vergessen?" → Mail muss ankommen; Link → Passwort setzen → Login.
+
+> Ohne SMTP funktioniert die App weiter: Kunde-Anlegen zeigt dann das **Backup-Passwort** zur
+> manuellen Weitergabe (Fallback). Reset-Mails werden erst nach SMTP-Setup zugestellt.
+
 ## Server-Hooks deployen (`pb_hooks/`, VOR-9)
 Die Per-Tenant-SuperChat-Anbindung läuft als PocketBase-JS-Hook serverseitig.
 ```bash

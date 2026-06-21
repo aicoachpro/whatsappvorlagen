@@ -22,6 +22,8 @@ Datei-Register. Jede neue Datei wird hier UND in [ARCHITECTURE_DESIGN.md §6](AR
 - [specs/VOR-9.md](specs/VOR-9.md) — Per-Tenant SuperChat-Key (verschlüsselt) + Meta-Push; Slice 1: `tenant_secrets` + `pb_hooks/`
 - [specs/VOR-3.md](specs/VOR-3.md) — Admin-Verwaltung: Eigen-Passwort (UI) + Vertragsdatum
 - [specs/VOR-1.md](specs/VOR-1.md) — Per-Tenant Overlay-Edit + personalisierte Galerie/Vorschau
+- [specs/VOR-2.md](specs/VOR-2.md) — Notion-Abschaltung
+- [specs/VOR-11.md](specs/VOR-11.md) — E-Mail/SMTP: Passwort-vergessen + Willkommens-Mail
 
 ## Code
 - `lib/` — config.js (SSoT), doc-sync.js

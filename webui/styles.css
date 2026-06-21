@@ -50,6 +50,8 @@ button{cursor:pointer;font:inherit}
 .login-card button:hover{transform:translateY(-1px);box-shadow:0 12px 22px -6px rgba(16,160,126,.6),inset 0 1px 0 rgba(255,255,255,.35)}
 .login-card button:active{transform:translateY(0);filter:brightness(.97)}
 .error{background:linear-gradient(180deg,#fff1f1,#fde8e8);color:#b42318;padding:11px 12px;border-radius:10px;font-size:13px;border:1px solid #f7d4d4}
+.linklike{background:none;border:0;color:var(--brand);font-size:13px;text-decoration:underline;padding:2px;align-self:flex-start;cursor:pointer}
+.linklike:hover{color:#0a7d6e}
 
 /* Topbar */
 .topbar{

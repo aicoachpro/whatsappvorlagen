@@ -510,10 +510,16 @@ async function createCustomer(e) {
     // 3) Self-Service-Einstellungen (Firma + Links) als tenant_settings — kundeneditierbar (VOR-8).
     //    catch: bricht das Onboarding nicht, falls die Collection (noch) nicht ausgerollt ist.
     await api('POST', '/api/collections/tenant_settings/records', { tenant: tenant.id, firma, ersetzungen }).catch(() => {});
+    // 4) Willkommens-Mail mit „Passwort setzen"-Link (VOR-11); Backup-Passwort als Fallback.
+    let mailed = false;
+    try { await api('POST', '/api/collections/users/request-password-reset', { email }); mailed = true; } catch (_) {}
     msg.className = 'ok-msg';
-    msg.innerHTML = `✓ Kunde <b>${esc(email)}</b> angelegt.<br>Passwort: <code>${esc(pass)}</code>
-      <button type="button" class="copy-row" id="copy-cred" style="margin-top:6px">📋 Zugangsdaten kopieren</button>
-      <br><small>Jetzt notieren/kopieren und an den Kunden geben — danach nicht mehr abrufbar.</small>`;
+    msg.innerHTML = `✓ Kunde <b>${esc(email)}</b> angelegt. `
+      + (mailed
+        ? `<b>Willkommens-Mail mit Passwort-Link</b> verschickt — der Kunde setzt sein eigenes Passwort.`
+        : `<b>Mailversand nicht möglich</b> (SMTP in PocketBase prüfen) — bitte Zugangsdaten manuell geben.`)
+      + `<br><small>Backup-Passwort (falls keine Mail ankommt): <code>${esc(pass)}</code></small>
+      <button type="button" class="copy-row" id="copy-cred" style="margin-top:6px">📋 Zugangsdaten kopieren</button>`;
     $('#copy-cred').onclick = () => copyText(`WhatsApp-Vorlagen\nLogin: ${location.origin}/\nE-Mail: ${email}\nPasswort: ${pass}`, $('#copy-cred'), '📋 Zugangsdaten kopieren');
     $('#c-name').value = ''; $('#c-email').value = ''; $('#c-firma').value = ''; $('#c-web').value = ''; $('#c-more').value = ''; $('#c-pass').value = genPass();
     // Liste nicht sofort neu rendern (würde die Zugangsdaten-Anzeige überschreiben)
@@ -711,6 +717,50 @@ async function saveSettings() {
 }
 function closeSettings() { $('#settings').classList.add('hidden'); }
 
+/* ─── Passwort-Reset / Willkommen (VOR-11) ─────────────────────────────────── */
+// AI-generated: VOR-11 — Self-Service „Passwort vergessen": PB request-password-reset (mailt Link)
+async function requestReset() {
+  const email = $('#email').value.trim();
+  const err = $('#login-error'), msg = $('#login-msg');
+  err.classList.add('hidden'); msg.className = 'hidden';
+  if (!email) { err.textContent = 'Bitte zuerst deine E-Mail oben eingeben.'; err.classList.remove('hidden'); $('#email').focus(); return; }
+  const btn = $('#forgot-btn'); btn.disabled = true;
+  // PB antwortet aus Datenschutzgründen neutral — wir zeigen immer dieselbe Meldung.
+  try { await api('POST', '/api/collections/users/request-password-reset', { email }); } catch (_) {}
+  msg.className = 'ok-msg';
+  msg.textContent = 'Falls ein Zugang zu dieser E-Mail existiert, haben wir dir einen Link zum Passwort-Setzen geschickt.';
+  btn.disabled = false;
+}
+// AI-generated: VOR-11 — Reset-Bestätigung: Token aus URL → neues Passwort (confirm-password-reset)
+function showResetConfirm(token) {
+  show('login');
+  $('#login').innerHTML = `
+    <form class="login-card" id="reset-form">
+      <div class="brand"><span class="brand-mark">💬</span> WhatsApp-Vorlagen</div>
+      <p class="login-sub">Neues Passwort setzen.</p>
+      <label>Neues Passwort (mind. 8 Zeichen)<input type="password" id="r-pass" autocomplete="new-password" required minlength="8"></label>
+      <label>Passwort wiederholen<input type="password" id="r-pass2" autocomplete="new-password" required></label>
+      <button type="submit" id="r-btn">Passwort setzen</button>
+      <div id="r-msg" class="hidden"></div>
+    </form>`;
+  $('#reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p1 = $('#r-pass').value, p2 = $('#r-pass2').value, msg = $('#r-msg'), btn = $('#r-btn');
+    msg.className = 'hidden';
+    if (p1.length < 8) { msg.className = 'error'; msg.textContent = 'Mindestens 8 Zeichen.'; return; }
+    if (p1 !== p2) { msg.className = 'error'; msg.textContent = 'Passwörter stimmen nicht überein.'; return; }
+    btn.disabled = true; btn.textContent = 'Setzt…';
+    try {
+      await api('POST', '/api/collections/users/confirm-password-reset', { token, password: p1, passwordConfirm: p2 });
+      msg.className = 'ok-msg'; msg.textContent = '✓ Passwort gesetzt. Weiter zur Anmeldung…';
+      setTimeout(() => { location.href = location.origin + '/'; }, 1800);
+    } catch (_) {
+      msg.className = 'error'; msg.textContent = 'Link ungültig oder abgelaufen. Bitte „Passwort vergessen?" erneut nutzen.';
+      btn.disabled = false; btn.textContent = 'Passwort setzen';
+    }
+  });
+}
+
 /* ─── Boot ─────────────────────────────────────────────────────────────── */
 async function boot() {
   show('app');
@@ -731,6 +781,7 @@ $('#login-form').addEventListener('submit', async (e) => {
   catch { err.textContent = 'Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.'; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.textContent = 'Anmelden'; }
 });
+$('#forgot-btn').addEventListener('click', requestReset);
 $('#logout').addEventListener('click', logout);
 $('#modal-close').addEventListener('click', closeModal);
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
@@ -746,6 +797,9 @@ $('#bulk-close').addEventListener('click', closeBulk);
 $('#bulk').addEventListener('click', (e) => { if (e.target.id === 'bulk') closeBulk(); });
 
 (async () => {
+  // VOR-11: Reset-Link aus der Willkommens-/Passwort-vergessen-Mail (`?reset=TOKEN`)
+  const resetToken = new URLSearchParams(location.search).get('reset');
+  if (resetToken) { showResetConfirm(resetToken); return; }
   if (store.token) { try { await boot(); return; } catch {} }
   show('login');
 })();

@@ -2,6 +2,11 @@
 
 ## 2026-06-21
 
+### E-Mail-Flows: Passwort-vergessen + Willkommens-Mail (VOR-11)
+- **Login:** „Passwort vergessen?" → PB `request-password-reset` (neutrale Meldung); **Reset-Seite** liest `?reset=TOKEN` und setzt neues Passwort via `confirm-password-reset`.
+- **Onboarding:** `createCustomer` löst automatisch eine Willkommens-Mail mit „Passwort setzen"-Link aus (kein Klartext per Mail); **Backup-Passwort** bleibt als Fallback sichtbar (funktioniert auch ohne SMTP).
+- Endpoints lokal verifiziert (request → 204, confirm bad-token → 400). **E2E braucht SMTP** — Operator richtet PB-Mail-Settings ein (`deploy/vorlagen/README.md`).
+
 ### Notion abgeschaltet (VOR-2)
 - Notion gekündigt & abgeklemmt. Gelöscht: `agents/sync-superchat-to-notion.js`, `agents/notion-enrich-to-pb.js`. `agents/test-env.js` Notion-Health-Check entfernt; `package.json` ohne `sync:notion`/`enrich:pb`, Beschreibung aktualisiert.
 - Doku-SSoTs bereinigt (CLAUDE.md, ARCHITECTURE_DESIGN, SYSTEM_ARCHITECTURE-„veraltet"-Banner, COMPONENT_INVENTORY, INDEX, SECURITY) — Notion nur noch Historie. PocketBase ist alleinige Auslieferungs-Plattform.
