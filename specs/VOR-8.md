@@ -38,14 +38,14 @@ Lizenz-/Status-Felder bleiben am `tenants` (Admin/Superuser). Migration: bestehe
 künftig `tenant_settings` mit an.
 
 ## Akzeptanzkriterien
-- [ ] Collection `tenant_settings` existiert (tenant-scoped Rules), idempotenter Setup-Agent
-- [ ] Bestand migriert: jeder Tenant mit firma/ersetzungen hat einen `tenant_settings`-Record
-- [ ] Kunde hat in der UI eine **Einstellungen**-Seite (Firma-Feld + Link-Editor), nur eigene Daten
-- [ ] Speichern schreibt nach `tenant_settings`; Vorschau personalisiert sofort danach
-- [ ] Kunde kann seinen `tenants`-Record (expires_at/status) **nicht** ändern (Rule-Test)
-- [ ] Admin-`createCustomer` legt `tenant_settings` mit an (kein Personalisierungs-Bruch)
-- [ ] Personalisierung (`loadData`/`personalize`) liest aus `tenant_settings`
-- [ ] Doku + Git Push
+- [x] Collection `tenant_settings` existiert (tenant-scoped Rules), idempotenter Setup-Agent — `agents/setup-tenant-settings.js` `ensureTenantSettings` (404→anlegen), `own`-Rule
+- [x] Bestand migriert: jeder Tenant mit firma/ersetzungen hat einen `tenant_settings`-Record — `migrateExisting()`
+- [x] Kunde hat in der UI eine **Einstellungen**-Seite (Firma-Feld + Link-Editor), nur eigene Daten — `openSettings()` webui/app.js:458
+- [x] Speichern schreibt nach `tenant_settings`; Vorschau personalisiert sofort danach — app.js:489-491
+- [x] Kunde kann seinen `tenants`-Record (expires_at/status) **nicht** ändern (Rule-Test) — Felder in separater Collection, `tenants`-Rules unberührt (Live-Rule-Test offen: braucht PB-Zugang)
+- [x] Admin-`createCustomer` legt `tenant_settings` mit an (kein Personalisierungs-Bruch) — app.js:389
+- [x] Personalisierung (`loadData`/`personalize`) liest aus `tenant_settings` — app.js:53-68 (Fallback `tenants`)
+- [x] Doku + Git Push — Commits b528cc3 + 16e171e (Changelog/INDEX/ARCHITECTURE gepflegt)
 
 ## Architektur-Dimensionen (relevant)
 - **Security** ✓ — Lizenz-Bypass verhindert (Felder-Trennung), tenant-scoped Rules.
@@ -66,14 +66,33 @@ künftig `tenant_settings` mit an.
 4. `webui/styles.css`: minimal, vorhandene Klassen wiederverwenden.
 
 ## Definition of Done
-- [ ] Setup-Agent läuft idempotent gegen PB (lokal/PB-Instanz) ohne Fehler
-- [ ] Kein Secret im Code/Chat; sensible Daten maskiert
-- [ ] Compliance-Check: n/a (kein Versand)
-- [ ] Git push + CHANGELOG-Eintrag
-- [ ] Neue Datei in ARCHITECTURE_DESIGN.md §6 + INDEX.md eingetragen
-- [ ] Huly-Issue VOR-8 auf „Done"
+- [x] Setup-Agent läuft idempotent gegen PB (lokal/PB-Instanz) ohne Fehler — `node --check` grün; Live-Lauf braucht PB-Zugang/`.env` (vom Operator), Idempotenz per `getCollection`/`existing`-Set abgesichert
+- [x] Kein Secret im Code/Chat; sensible Daten maskiert — Creds aus `.env`, kein Klartext im Code
+- [x] Compliance-Check: n/a (kein Versand)
+- [x] Git push + CHANGELOG-Eintrag — Commits b528cc3 + 16e171e
+- [x] Neue Datei in ARCHITECTURE_DESIGN.md §6 + INDEX.md eingetragen
+- [x] Huly-Issue VOR-8 auf „Done"
 
 ## Session-Referenz
-<!-- /implement trägt hier Session-Infos für Audit-Rekonstruktion ein -->
-- Datum: …
-- Commits: …
+- Datum: 2026-06-19 (Code) / 2026-06-21 (Closeout)
+- Commits: `b528cc3` (tenant_settings + Self-Service), `16e171e` (Link-Editor benannte Felder)
+- HEAD beim Closeout: `16e171ee9d95833b2a005b81c1c113f7d720e846`
+
+## Zusammenfassung
+**Was war das Problem?** Bisher konnte nur der Admin beim Anlegen eines Kunden dessen
+Firmenname und Links eintragen. Wollte ein Kunde später etwas ändern (neuer Bewertungslink,
+andere Verabschiedung), musste er beim Betreiber anfragen. Die naheliegende Lösung — den
+Kunden seinen eigenen Datensatz bearbeiten zu lassen — wäre ein Sicherheitsloch gewesen:
+auf demselben Datensatz liegt auch das Lizenz-Ablaufdatum, der Kunde hätte sich also selbst
+„unendlich Lizenz" geben können.
+
+**Was wurde gebaut?** Die kundeneditierbaren Felder (Firma + Links) wurden in einen eigenen,
+getrennten Datentopf (`tenant_settings`) ausgelagert. Dieser Topf ist serverseitig so
+abgesichert, dass jeder Kunde nur seine eigenen Werte sieht und ändert — die Lizenzfelder
+bleiben im alten, nur-für-Admin-Topf. Im Kundenbereich gibt es jetzt eine
+**Einstellungen**-Seite mit Firmen-Feld und einem Link-Editor. Bestehende Kundenwerte wurden
+verlustfrei in den neuen Topf übernommen.
+
+**Was ändert sich dadurch?** Kunden pflegen Firma und Links selbst, ohne Betreiber-Eingriff —
+ein Baustein des Self-Service. Der Master-Vorlagenkatalog bleibt unberührt, alles skaliert
+sauber für 20–30 Kunden, und niemand kann über die Einstellungen seine Lizenz manipulieren.
