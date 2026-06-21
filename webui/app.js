@@ -446,6 +446,7 @@ function renderAdmin(customers, tById) {
             <div class="cust-sub">${esc(t?.firma || t?.name || '— kein Mandant')}</div>
             <div style="margin-top:3px">${ablaufBadge(t)}</div></div>
           <div class="cust-act">
+            ${t ? '<button class="mini" data-act="lz">Laufzeit</button>' : ''}
             ${t ? '<button class="mini" data-act="ext">+1 Jahr</button>' : ''}
             <button class="mini" data-act="pw">Passwort</button>
             <button class="mini danger" data-act="del">Löschen</button>
@@ -463,6 +464,7 @@ function renderAdmin(customers, tById) {
     const row = e.target.closest('.cust-row');
     if (b.dataset.act === 'pw') resetCustomerPass(row.dataset.uid);
     else if (b.dataset.act === 'ext') extendTenant(row.dataset.tid);
+    else if (b.dataset.act === 'lz') editLaufzeit(row.dataset.tid);
     else deleteCustomer(row.dataset.uid, row.dataset.tid);
   });
 }
@@ -490,6 +492,23 @@ async function extendTenant(tid) {
     const base = t.expires_at && new Date(t.expires_at) > new Date() ? new Date(t.expires_at) : new Date();
     base.setDate(base.getDate() + 365);
     await api('PATCH', `/api/collections/tenants/records/${tid}`, { expires_at: base.toISOString(), status: 'active' });
+    openAdmin();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+// AI-generated: VOR-12 — Laufzeit nachträglich setzen: Vertragsbeginn eingeben → Ablauf = +365 Tage
+async function editLaufzeit(tid) {
+  if (!tid) return;
+  let t;
+  try { t = await api('GET', `/api/collections/tenants/records/${tid}`); } catch (e) { alert('Fehler: ' + e.message); return; }
+  const curStart = t.invited_at ? new Date(t.invited_at).toLocaleDateString('de-DE') : '';
+  const curEnd = t.expires_at ? new Date(t.expires_at).toLocaleDateString('de-DE') : '—';
+  const inp = prompt(`Vertragsbeginn für „${t.name}" (TT.MM.JJJJ). Ablauf wird automatisch = +365 Tage.\nAktueller Beginn: ${curStart || '—'}  ·  Ablauf: ${curEnd}`, curStart);
+  if (inp === null) return;
+  const d = parseDeDate(inp.trim());
+  if (!d) { alert('Ungültiges Datum. Bitte Format TT.MM.JJJJ (z. B. 01.07.2025).'); return; }
+  const exp = new Date(d); exp.setDate(exp.getDate() + 365);
+  try {
+    await api('PATCH', `/api/collections/tenants/records/${tid}`, { invited_at: d.toISOString(), expires_at: exp.toISOString(), status: 'active' });
     openAdmin();
   } catch (e) { alert('Fehler: ' + e.message); }
 }
@@ -621,6 +640,7 @@ async function runCsvImport(rows) {
   sum.textContent = `✓ Fertig: ${ok} angelegt + eingeladen${fail ? ', ' + fail + ' Fehler' : ''}. (Mails ggf. im Spam — „Kein Spam" markieren.)`;
   const go = document.getElementById('csv-go');
   if (go) { go.disabled = false; go.textContent = 'Erneut importieren'; }
+  if (!fail && ok) setTimeout(openAdmin, 2200); // Liste frisch laden → neue Kunden mit Laufzeit/Löschen sichtbar
 }
 
 // AI-generated: VOR-3 — Admin ändert sein EIGENES Passwort in der UI (kein Skript/DB-Eingriff)
