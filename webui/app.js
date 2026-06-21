@@ -857,6 +857,8 @@ function showResetConfirm(token) {
 async function boot() {
   show('app');
   $('#admin-btn').classList.toggle('hidden', !isAdmin());
+  // VOR-12: „Einstellungen" (persönliche Kunden-Seite) nur für Konten mit Mandant — Admin hat keinen.
+  $('#settings-btn').classList.toggle('hidden', !store.user?.tenant);
   await loadData(); render();
   refreshScButton();
 }
