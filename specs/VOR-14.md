@@ -26,7 +26,9 @@ Verlängerung anfragt. (3) Fehler-Benachrichtigungen: Scope noch offen.
 - [x] Hook pingt sofort, falls Container-Telegram-Env vorhanden (graceful ohne)
 - [ ] **Deploy:** `telegram_notify.pb.js` auf den Server kopieren (cp-Befehl, deploy-README) + Container neu starten
 - [ ] **Optional (sofort statt täglich):** `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` in docker-compose-Env
-- [ ] **Fehler-Benachrichtigungen:** Scope mit Operator klären (welche Fehler)
+- [x] **Fehler-/Störungs-Benachrichtigung:** `agents/health-check.js` + `.github/workflows/health-check.yml`
+      (alle 30 Min): prüft PB-Health, Kunden-UI, geladene Hooks, Admin-Login → Telegram bei Ausfall
+      („gravierender Fehler"). Gegen Live verifiziert (alles ok). Greift sobald GitHub-Secrets gesetzt.
 
 ## Session-Referenz
 - Datum: 2026-06-21

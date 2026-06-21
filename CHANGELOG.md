@@ -5,7 +5,8 @@
 ### Telegram: Registrierung + Verlängerungs-Anfrage (VOR-14)
 - `pb_hooks/telegram_notify.pb.js`: Erst-Login eines Kunden setzt `users.registered_at` (lokal verifiziert); optional Sofort-Telegram bei Registrierung/Anfrage, wenn `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` in der Container-Env liegen (graceful ohne).
 - `check-tenant-expiry.js` (täglicher Job) meldet zusätzlich neu registrierte Kunden + offene Verlängerungs-Anfragen. `registered_at`-Feld via `setup-renewal.js` live angelegt.
-- Deploy: `telegram_notify.pb.js` per cp auf den Server (deploy-README); Fehler-Benachrichtigungen noch offen.
+- Deploy: `telegram_notify.pb.js` per cp auf den Server (deploy-README).
+- **Störungs-Monitor:** `agents/health-check.js` + `.github/workflows/health-check.yml` (alle 30 Min) prüfen PB/Website/Hooks/Login und melden Ausfälle per Telegram (gesund = still). Gegen Live verifiziert.
 
 ### Kunden-Verlängerungs-Dialog (VOR-13)
 - Abgelaufene Kunden dürfen einloggen (`users.authRule` um `tenant.status="expired"` erweitert; suspended bleibt blockiert) und sehen ein Vollbild-Overlay „Laufzeit abgelaufen — Verlängerung anfragen" (`webui/`). Anfrage → neue Collection `renewal_requests` (`agents/setup-renewal.js`).
