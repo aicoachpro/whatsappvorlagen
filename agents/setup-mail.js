@@ -51,6 +51,7 @@ const SMTP_PASS = env.MAIL_PASSWORD;
 const SENDER_NAME = env.MAIL_SENDER_NAME    || 'Völker Vorlagen';
 const SENDER_ADDR = env.MAIL_SENDER_ADDRESS || SMTP_USER;
 const APP_URL     = (env.APP_URL || 'https://vorlagen.voelkergroup.cloud').replace(/\/$/, '');
+const RESET_HOURS = parseInt(env.MAIL_RESET_TOKEN_HOURS || '48', 10); // Gültigkeit des Passwort-Links
 
 if (!SMTP_PASS || /your_|changeme|placeholder/i.test(SMTP_PASS)) {
   console.error('MAIL_PASSWORD fehlt in .env — bitte das Passwort des Postfachs ' + SMTP_USER + ' eintragen.');
@@ -94,6 +95,7 @@ const RESET_BODY =
     console.log(`  Absender: "${SENDER_NAME}" <${SENDER_ADDR}>`);
     console.log(`  App-URL: ${APP_URL}`);
     console.log(`  Reset-Template-Link: ${APP_URL}/?reset={TOKEN}`);
+    console.log(`  Passwort-Link gültig: ${RESET_HOURS} h`);
     return;
   }
   PB_TOKEN = (await pb('POST', '/api/collections/_superusers/auth-with-password', { identity: PB_EMAIL, password: PB_PASS })).token;
@@ -105,10 +107,13 @@ const RESET_BODY =
   });
   console.log(`  SMTP gesetzt: ${SMTP_USER} @ ${SMTP_HOST}:${SMTP_PORT}; Absender "${SENDER_NAME}" <${SENDER_ADDR}>; App-URL ${APP_URL}`);
 
-  // 2) Reset-Template der users-Collection → Link auf die Kunden-UI
+  // 2) Reset-Template der users-Collection → Link auf die Kunden-UI + längere Token-Gültigkeit
   const users = await pb('GET', '/api/collections/users');
-  await pb('PATCH', `/api/collections/${users.id}`, { resetPasswordTemplate: { subject: RESET_SUBJECT, body: RESET_BODY } });
-  console.log('  resetPasswordTemplate gesetzt (Link → Kunden-UI, deutscher Text)');
+  await pb('PATCH', `/api/collections/${users.id}`, {
+    resetPasswordTemplate: { subject: RESET_SUBJECT, body: RESET_BODY },
+    passwordResetToken: { duration: RESET_HOURS * 3600 },
+  });
+  console.log(`  resetPasswordTemplate gesetzt (Link → Kunden-UI); Passwort-Link gültig ${RESET_HOURS} h`);
 
   console.log('\n[Mail-Setup] Fertig. Test: im Login „Passwort vergessen?" → Mail muss ankommen, Link → Passwort setzen.\n');
 })().catch(err => { console.error('[Mail-Setup] Fatal:', err.message || err); process.exit(1); });
