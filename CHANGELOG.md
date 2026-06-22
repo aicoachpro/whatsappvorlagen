@@ -1,5 +1,14 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-06-22
+
+### Variablen-Templates push-fähig — `attribute_identifier` geklärt (VOR-9)
+- Monatelanger Blocker gelöst: SuperChats Create verlangt pro Variable `{ position, attribute_identifier }`. `attribute_identifier` = Standard `first_name | last_name | gender | wildcard` **oder** die `ca_…`-ID eines Custom-Contact-Attributs (Doku `createatemplate-1` + live in Thomas' Account verifiziert; 3 Test-Templates erstellt und wieder gelöscht).
+- Ursache der 400er: Read ≠ Create. Custom-Attr liefert beim Lesen `attribute_id` (anderer Feldname), Standard-Attr liefern gar keinen Identifier (`type:"static"`).
+- `pb_hooks/superchat_push.pb.js`: Variablen-Rückübersetzung — `attribute_id`-Auto für Custom, `STD_VAR_MAP` (Vorname→first_name, Nachname→last_name, Freitext→wildcard), `wildcard`-Fallback für Smart-/Sender-Attribute (Aktueller Benutzer, Grußformel, Workspacename — kein API-Pendant) mit sichtbarer Preview-Warnung.
+- `agents/probe-template-variables.js`: Probe-Tool (Default read-only Recon, `--create … --confirm` schreibt real).
+- **Offen:** Hook deployen + Operator-Live-Submit eines echten Variablen-Templates (prüft `wildcard` ohne Beispielwert gegen Meta).
+
 ## 2026-06-21
 
 ### Telegram: Registrierung + Verlängerungs-Anfrage (VOR-14)

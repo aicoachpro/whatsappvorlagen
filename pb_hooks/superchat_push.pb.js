@@ -105,8 +105,28 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       });
     }
     // SuperChat verlangt content.variables IMMER (Pflichtfeld) — auch leer. Fehlt es → 400 "Ungültiger Parameter: variables".
-    const variables = jparse(t.get("variables"));
-    content.variables = Array.isArray(variables) ? variables : [];
+    //
+    // Create-Schema (laut Doku createatemplate-1): { position, attribute_identifier }.
+    //   attribute_identifier = Standard-Kennung (first_name | last_name | gender | wildcard)
+    //   ODER die ca_-ID eines Custom-Contact-Attributs.
+    // Beim LESEN liefert SuperChat aber eine andere Form (deshalb scheiterte der Push lange):
+    //   Custom:   { position, display_name, attribute_id: "ca_…", type: "contact_attribute" }
+    //   Standard: { position, display_name, type: "static" }   ← KEIN Identifier enthalten!
+    // → hier zurückübersetzen. Custom: attribute_id direkt nutzen. Standard: per Map raten.
+    // Smart-/Sender-Attribute (Aktueller Benutzer, Grußformel, Workspacename) haben kein
+    // Create-Pendant → als Freitext-Platzhalter (wildcard) einreichen + Warnung (in SuperChat
+    // ggf. manuell auf das Smart-Attribut umstellen). "Freitext"/URL-Suffix = von Haus aus wildcard.
+    const STD_VAR_MAP = { "Vorname": "first_name", "Nachname": "last_name", "Geschlecht": "gender", "Freitext": "wildcard" };
+    const rawVars = jparse(t.get("variables"));
+    content.variables = (Array.isArray(rawVars) ? rawVars : []).map((v) => {
+      if (!v) return { position: 0, type: "static", attribute_identifier: "wildcard" };
+      let ident = v.attribute_id || v.attribute_identifier || STD_VAR_MAP[v.display_name];
+      if (!ident) {
+        ident = "wildcard";
+        warnings.push('Variable "' + (v.display_name || ("#" + v.position)) + '" wird als Freitext-Platzhalter (wildcard) eingereicht — in SuperChat ggf. auf das passende Smart-Attribut umstellen.');
+      }
+      return { position: v.position, type: "static", attribute_identifier: ident };
+    });
 
     const base = ($os.getenv("SUPERCHAT_BASE_URL") || "https://api.superchat.com/v1.0").replace(/\/$/, "");
     const authHeaders = { "X-API-Key": apiKey, "Accept": "application/json" };
