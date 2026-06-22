@@ -2,6 +2,10 @@
 'use strict';
 
 const API = location.origin;
+// VOR-9 (SuperChat-Push) noch nicht ausgerollt → Kunden-UI dafür ausblenden. Auf true, wenn fertig + ENC_KEY gesetzt.
+const FEATURE_SUPERCHAT = false;
+const PUSH_BLOCK = '<div class="copy-block" id="push-block"><h3>📤 Direkt an SuperChat einreichen</h3><p class="placeholder">Reicht diese Vorlage in deinem SuperChat-Account zur <b>Meta-Freigabe</b> ein (kein Entwurf — Meta prüft sie). Voraussetzung: SuperChat-Verbindung in den ⚙️ Einstellungen.</p><div class="actions"><button class="btn-save" id="push-btn">Vorschau &amp; einreichen</button></div><div id="push-panel" class="hidden"></div></div>';
+const SC_CONN_HTML = '<h3 style="margin-top:18px">SuperChat-Verbindung</h3><p class="placeholder">Hinterlege deine eigene SuperChat-API, um Vorlagen später per Knopfdruck in deinen Account einzureichen. Der Schlüssel wird verschlüsselt gespeichert und niemals angezeigt.</p><div class="edit" id="sc-conn"><div id="sc-status" class="sub">lädt…</div><label>SuperChat-API-Key<input type="password" id="sc-key" autocomplete="off" placeholder="Key aus SuperChat → Einstellungen › Integrationen › API-Key"></label><label>WhatsApp Business Account-ID (WABA-ID)<input type="text" id="sc-waba" autocomplete="off" placeholder="waba_xxxxxxxxxxxxxxxxxxxxx"></label><label>Speichern als<select id="sc-mode"><option value="stored">🔒 Verschlüsselt speichern (1-Klick-Push jederzeit)</option><option value="session">⏱️ Nur diese Sitzung (nicht speichern)</option></select></label><div class="actions"><button class="btn-save" id="sc-save">Prüfen &amp; speichern</button><button class="btn-reset hidden" id="sc-del">Entfernen</button></div><div id="sc-msg" class="hidden"></div></div>';
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -207,12 +211,7 @@ function openModal(id) {
           <div class="sc-btns">${t.buttons.map((b, i) => `<div class="sc-btn"><span class="btn-pos">${i + 1}</span> Typ <b>${esc(btnTypeLabel(b.type))}</b>, Label <button class="copy-row inline" data-cb="${i}">📋 „${esc(b.title || '')}"</button>${b.target ? ` · Wert: ${esc(b.target)}` : ''}</div>`).join('')}</div></li>` : ''}
       </ol>
     </div>
-    <div class="copy-block" id="push-block">
-      <h3>📤 Direkt an SuperChat einreichen</h3>
-      <p class="placeholder">Reicht diese Vorlage in deinem SuperChat-Account zur <b>Meta-Freigabe</b> ein (kein Entwurf — Meta prüft sie). Voraussetzung: SuperChat-Verbindung in den ⚙️ Einstellungen.</p>
-      <div class="actions"><button class="btn-save" id="push-btn">Vorschau &amp; einreichen</button></div>
-      <div id="push-panel" class="hidden"></div>
-    </div>
+    ${FEATURE_SUPERCHAT ? PUSH_BLOCK : ''}
     <div class="edit">
       <h3>Deine Anpassungen</h3>
       <label>Eigener Text (überschreibt Vorlagentext)
@@ -229,7 +228,7 @@ function openModal(id) {
     </div>`;
   $('#modal').classList.remove('hidden');
   $('#f-save').onclick = () => saveOverlay(base.id);
-  $('#push-btn').onclick = () => pushPreview(base.id);
+  if (FEATURE_SUPERCHAT && $('#push-btn')) $('#push-btn').onclick = () => pushPreview(base.id);
   if ($('#f-reset')) $('#f-reset').onclick = () => resetOverlay(base.id);
   if ($('#copy-body')) $('#copy-body').onclick = () => copyText(t.body, $('#copy-body'), '📋 Vorlagentext kopieren');
   if ($('#copy-footer')) $('#copy-footer').onclick = () => copyText(t.footer, $('#copy-footer'), '📋 Fußzeile kopieren');
@@ -299,6 +298,7 @@ async function pushSubmit(id) {
 /* ─── Bulk-Push: alle Vorlagen einreichen (VOR-9 Slice 3) ───────────────────── */
 // AI-generated: VOR-9 — Bulk nutzt sequenziell die geprüfte Single-Submit-Route (Pro-Vorlage-Status)
 async function refreshScButton() {
+  if (!FEATURE_SUPERCHAT) { $('#bulk-btn').classList.add('hidden'); return; }
   try { const s = await api('GET', '/api/vor/superchat-key'); $('#bulk-btn').classList.toggle('hidden', !s.configured); }
   catch (_) { $('#bulk-btn').classList.add('hidden'); }
 }
@@ -737,30 +737,9 @@ function openSettings() {
       <div class="actions"><button class="btn-save" id="s-save">Speichern</button></div>
       <div id="s-msg" class="hidden"></div>
     </div>
-
-    <h3 style="margin-top:18px">SuperChat-Verbindung</h3>
-    <p class="placeholder">Hinterlege deine eigene SuperChat-API, um Vorlagen später per Knopfdruck in deinen Account einzureichen. Der Schlüssel wird verschlüsselt gespeichert und niemals angezeigt.</p>
-    <div class="edit" id="sc-conn">
-      <div id="sc-status" class="sub">lädt…</div>
-      <label>SuperChat-API-Key
-        <input type="password" id="sc-key" autocomplete="off" placeholder="Key aus SuperChat → Einstellungen › Integrationen › API-Key"></label>
-      <label>WhatsApp Business Account-ID (WABA-ID)
-        <input type="text" id="sc-waba" autocomplete="off" placeholder="waba_xxxxxxxxxxxxxxxxxxxxx"></label>
-      <label>Speichern als
-        <select id="sc-mode">
-          <option value="stored">🔒 Verschlüsselt speichern (1-Klick-Push jederzeit)</option>
-          <option value="session">⏱️ Nur diese Sitzung (nicht speichern)</option>
-        </select></label>
-      <div class="actions">
-        <button class="btn-save" id="sc-save">Prüfen &amp; speichern</button>
-        <button class="btn-reset hidden" id="sc-del">Entfernen</button>
-      </div>
-      <div id="sc-msg" class="hidden"></div>
-    </div>`;
+    ${FEATURE_SUPERCHAT ? SC_CONN_HTML : ''}`;
   $('#s-save').onclick = saveSettings;
-  $('#sc-save').onclick = saveSuperchatKey;
-  $('#sc-del').onclick = deleteSuperchatKey;
-  loadSuperchatStatus();
+  if (FEATURE_SUPERCHAT) { $('#sc-save').onclick = saveSuperchatKey; $('#sc-del').onclick = deleteSuperchatKey; loadSuperchatStatus(); }
 }
 
 /* ─── SuperChat-Verbindung (VOR-9 Slice 1) ─────────────────────────────────── */
