@@ -106,7 +106,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       try {
         const lf = $http.send({ url: base + "/template-folders?limit=200", method: "GET", headers: authHeaders, timeout: 15 });
         if (lf.statusCode >= 200 && lf.statusCode < 300) {
-          const arr = (lf.json && (lf.json.data || lf.json.items)) || [];
+          const arr = (lf.json && (lf.json.results || lf.json.data || lf.json.items)) || [];
           for (let i = 0; i < arr.length; i++) { if (arr[i] && arr[i].name === folderName) { folderId = arr[i].id; folderExists = true; break; } }
         }
       } catch (_) { /* Ordner-Liste optional */ }
