@@ -82,7 +82,12 @@ const RESET_BODY =
   '  <li><strong>Mehr Einstellungen</strong> – Firma, eigene Links und eigene Anpassungen pro Vorlage.</li>\n' +
   '  <li><strong>Automatisierung per Knopfdruck</strong> – hinterlegst du deine SuperChat-API, überträgst du Vorlagen mit einem Klick in deinen SuperChat-Account (kein Abtippen mehr).</li>\n' +
   '</ul>\n' +
-  '<p><strong>So startest du:</strong> klicke auf den Button, vergib dein eigenes Passwort und logge dich dann mit deiner E-Mail ein.</p>\n' +
+  '<p><strong>So startest du:</strong></p>\n' +
+  '<ol>\n' +
+  '  <li>Klicke auf den Button und <strong>vergib dein eigenes Passwort</strong> (der Link ist 48 Stunden gültig).</li>\n' +
+  '  <li>Danach meldest du dich in der App an unter:<br><a href="{APP_URL}">{APP_URL}</a></li>\n' +
+  '  <li>Dein <strong>Login-Name ist deine E-Mail-Adresse</strong> – genau die, an die diese Nachricht ging.</li>\n' +
+  '</ol>\n' +
   '<p><a class="btn" href="{APP_URL}/?reset={TOKEN}" target="_blank" rel="noopener">Passwort setzen &amp; loslegen</a></p>\n' +
   '<p>Ein kurzes Erklär-Video folgt in Kürze. Bei Fragen einfach auf diese E-Mail antworten.</p>\n' +
   '<p>Mit herzlichen Grüßen<br>Thomas von Völker AI Solutions</p>';
