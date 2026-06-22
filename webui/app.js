@@ -2,8 +2,8 @@
 'use strict';
 
 const API = location.origin;
-// VOR-9 (SuperChat-Push): erst true schalten, wenn Backend live (Hook + SUPERCHAT_ENC_KEY + Tabellen).
-const FEATURE_SUPERCHAT = false;
+// VOR-9 (SuperChat-Push) live (Hook + SUPERCHAT_ENC_KEY + Tabellen aktiv, 2026-06-22 verifiziert).
+const FEATURE_SUPERCHAT = true;
 const PUSH_BLOCK = '<div class="copy-block" id="push-block"><h3>📤 Direkt an SuperChat einreichen</h3><p class="placeholder">Reicht diese Vorlage in deinem SuperChat-Account zur <b>Meta-Freigabe</b> ein (kein Entwurf — Meta prüft sie). Voraussetzung: SuperChat-Verbindung in den ⚙️ Einstellungen.</p><div class="actions"><button class="btn-save" id="push-btn">Vorschau &amp; einreichen</button></div><div id="push-panel" class="hidden"></div></div>';
 const SC_CONN_HTML = '<h3 style="margin-top:18px">SuperChat-Verbindung</h3><p class="placeholder">Hinterlege deinen SuperChat-API-Key (in SuperChat unter Einstellungen › Integrationen › API-Key), um Vorlagen per Knopfdruck in deinen Account einzureichen. Der Schlüssel wird verschlüsselt gespeichert und nie angezeigt — deine WhatsApp-Verbindung wird automatisch erkannt.</p><div class="edit" id="sc-conn"><div id="sc-status" class="sub">lädt…</div><label>SuperChat-API-Key<input type="password" id="sc-key" autocomplete="off" placeholder="Dein SuperChat-API-Key"></label><label>Speichern als<select id="sc-mode"><option value="stored">🔒 Verschlüsselt speichern (1-Klick-Push jederzeit)</option><option value="session">⏱️ Nur diese Sitzung (nicht speichern)</option></select></label><div class="actions"><button class="btn-save" id="sc-save">Prüfen &amp; speichern</button><button class="btn-reset hidden" id="sc-del">Entfernen</button></div><div id="sc-msg" class="hidden"></div></div>';
 const $  = (s, r = document) => r.querySelector(s);
