@@ -148,16 +148,23 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       } catch (_) { /* ohne Ordner weiter */ }
     }
 
-    // Meta/WhatsApp verlangt Template-Namen als kleinbuchstaben_mit_unterstrich (^[a-z0-9_]+$).
-    const metaName = name.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 512) || "vorlage";
-    const payload = { name: metaName, whats_app_business_account_id: wabaId, content: content };
+    // SuperChat führt den lesbaren Anzeigenamen (so wie er im Sync geliefert wird) und erzeugt den
+    // Meta-konformen technischen Namen selbst — daher lesbaren Namen senden, NICHT slugifizieren.
+    const payload = { name: name, whats_app_business_account_id: wabaId, content: content };
     if (folderId) payload.folder_id = folderId;
 
-    let res;
-    try {
-      res = $http.send({ url: base + "/templates", method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders), body: JSON.stringify(payload), timeout: 30 });
-    } catch (_) {
-      return e.json(502, { ok: false, error: "SuperChat nicht erreichbar." });
+    // Bei Namenskonflikt (409 "Vorlage existiert bereits") automatisch mit " Kopie"-Suffix erneut
+    // einreichen — wie SuperChats eigenes Duplizieren ("Name Kopie", "Name Kopie 2", …).
+    let res, usedName = name;
+    for (let attempt = 0; attempt <= 5; attempt++) {
+      usedName = attempt === 0 ? name : (name + " Kopie" + (attempt > 1 ? " " + attempt : ""));
+      payload.name = usedName;
+      try {
+        res = $http.send({ url: base + "/templates", method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders), body: JSON.stringify(payload), timeout: 30 });
+      } catch (_) {
+        return e.json(502, { ok: false, error: "SuperChat nicht erreichbar." });
+      }
+      if (res.statusCode !== 409) break; // kein Konflikt mehr → fertig (Erfolg oder anderer Fehler)
     }
 
     let status = "", scId = "", errMsg = "";
@@ -175,7 +182,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       const lg = new Record($app.findCollectionByNameOrId("tenant_push_log"));
       lg.set("tenant", tenant);
       lg.set("template", templateId);
-      lg.set("template_name", name);
+      lg.set("template_name", usedName);
       lg.set("sc_template_id", scId);
       lg.set("status", status || "error");
       lg.set("error", errMsg);
@@ -183,7 +190,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     } catch (_) { /* Log darf den Push nicht blockieren */ }
 
     if (errMsg) return e.json(200, { ok: false, error: errMsg });
-    return e.json(200, { ok: true, action: "submit", status: status, scTemplateId: scId, folderAssigned: !!folderId });
+    return e.json(200, { ok: true, action: "submit", status: status, scTemplateId: scId, folderAssigned: !!folderId, name: usedName, renamed: usedName !== name });
   } catch (err) {
     console.log("[superchat_push] error:", String((err && err.message) || err));
     return e.json(500, { ok: false, error: "Interner Fehler beim Push." });
