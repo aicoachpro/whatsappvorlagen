@@ -89,12 +89,24 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       if (header.type === "text") content.header = { type: "text", value: personalize(header.value || "") };
       else warnings.push("Medien-Header (" + header.type + ") wird NICHT automatisch übertragen — bitte in SuperChat ergänzen.");
     }
+    // SuperChat-Create-Button-Format weicht vom Sync/Read-Format ab:
+    //   type:  static_url → url (akzeptiert: dynamic_url, phone_number, quick_reply, url)
+    //   label: title → text (Pflichtfeld)
+    //   ziel:  target bleibt target (URL bzw. Telefonnummer) — Pflichtfeld bei url/phone_number
+    const BTN_TYPE_MAP = { static_url: "url" };
     const buttons = jparse(t.get("buttons"));
     if (Array.isArray(buttons) && buttons.length) {
-      content.buttons = buttons.map((b) => (b && b.target) ? Object.assign({}, b, { target: personalize(b.target) }) : b);
+      content.buttons = buttons.map((b) => {
+        if (!b) return b;
+        const out = { type: BTN_TYPE_MAP[b.type] || b.type };
+        if (b.title) out.text = b.title;
+        if (b.target) out.target = personalize(b.target);
+        return out;
+      });
     }
+    // SuperChat verlangt content.variables IMMER (Pflichtfeld) — auch leer. Fehlt es → 400 "Ungültiger Parameter: variables".
     const variables = jparse(t.get("variables"));
-    if (Array.isArray(variables) && variables.length) content.variables = variables;
+    content.variables = Array.isArray(variables) ? variables : [];
 
     const base = ($os.getenv("SUPERCHAT_BASE_URL") || "https://api.superchat.com/v1.0").replace(/\/$/, "");
     const authHeaders = { "X-API-Key": apiKey, "Accept": "application/json" };
@@ -104,7 +116,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     let folderId = null, folderExists = false;
     if (folderName) {
       try {
-        const lf = $http.send({ url: base + "/template-folders?limit=200", method: "GET", headers: authHeaders, timeout: 15 });
+        const lf = $http.send({ url: base + "/template-folders?limit=100", method: "GET", headers: authHeaders, timeout: 15 });
         if (lf.statusCode >= 200 && lf.statusCode < 300) {
           const arr = (lf.json && (lf.json.results || lf.json.data || lf.json.items)) || [];
           for (let i = 0; i < arr.length; i++) { if (arr[i] && arr[i].name === folderName) { folderId = arr[i].id; folderExists = true; break; } }
