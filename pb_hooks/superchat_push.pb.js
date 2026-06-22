@@ -136,7 +136,9 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       } catch (_) { /* ohne Ordner weiter */ }
     }
 
-    const payload = { name: name, whats_app_business_account_id: wabaId, content: content };
+    // Meta/WhatsApp verlangt Template-Namen als kleinbuchstaben_mit_unterstrich (^[a-z0-9_]+$).
+    const metaName = name.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 512) || "vorlage";
+    const payload = { name: metaName, whats_app_business_account_id: wabaId, content: content };
     if (folderId) payload.folder_id = folderId;
 
     let res;
@@ -151,7 +153,9 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       status = (res.json && res.json.status) || "pending";
       scId = (res.json && res.json.id) || "";
     } else {
-      errMsg = "SuperChat " + res.statusCode + (res.body ? (": " + String(res.body).slice(0, 300)) : "");
+      let detail = "";
+      try { detail = res.json ? JSON.stringify(res.json) : ""; } catch (_) { detail = ""; }
+      errMsg = "SuperChat " + res.statusCode + (detail ? (": " + detail.slice(0, 400)) : "");
     }
 
     // Audit-Log
