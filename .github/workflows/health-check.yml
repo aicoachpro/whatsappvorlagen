@@ -1,0 +1,46 @@
+name: Health-Check (Störungs-Monitor, Telegram)
+
+on:
+  schedule:
+    # alle 30 Minuten (GitHub kann leicht verzögern)
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Nur testen, nichts senden (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Health-Check ausführen
+        env:
+          PB_URL: ${{ secrets.PB_URL }}
+          PB_ADMIN_EMAIL: ${{ secrets.PB_ADMIN_EMAIL }}
+          PB_ADMIN_PASSWORD: ${{ secrets.PB_ADMIN_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          cat > .env <<EOF
+          PB_URL=${PB_URL}
+          PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL}
+          PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD}
+          TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+          TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+          EOF
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            node agents/health-check.js --dry-run
+          else
+            node agents/health-check.js
+          fi
+          rm -f .env
