@@ -2,10 +2,10 @@
 'use strict';
 
 const API = location.origin;
-// VOR-9 (SuperChat-Push) noch nicht ausgerollt → Kunden-UI dafür ausblenden. Auf true, wenn fertig + ENC_KEY gesetzt.
+// VOR-9 (SuperChat-Push): erst true schalten, wenn Backend live (Hook + SUPERCHAT_ENC_KEY + Tabellen).
 const FEATURE_SUPERCHAT = false;
 const PUSH_BLOCK = '<div class="copy-block" id="push-block"><h3>📤 Direkt an SuperChat einreichen</h3><p class="placeholder">Reicht diese Vorlage in deinem SuperChat-Account zur <b>Meta-Freigabe</b> ein (kein Entwurf — Meta prüft sie). Voraussetzung: SuperChat-Verbindung in den ⚙️ Einstellungen.</p><div class="actions"><button class="btn-save" id="push-btn">Vorschau &amp; einreichen</button></div><div id="push-panel" class="hidden"></div></div>';
-const SC_CONN_HTML = '<h3 style="margin-top:18px">SuperChat-Verbindung</h3><p class="placeholder">Hinterlege deine eigene SuperChat-API, um Vorlagen später per Knopfdruck in deinen Account einzureichen. Der Schlüssel wird verschlüsselt gespeichert und niemals angezeigt.</p><div class="edit" id="sc-conn"><div id="sc-status" class="sub">lädt…</div><label>SuperChat-API-Key<input type="password" id="sc-key" autocomplete="off" placeholder="Key aus SuperChat → Einstellungen › Integrationen › API-Key"></label><label>WhatsApp Business Account-ID (WABA-ID)<input type="text" id="sc-waba" autocomplete="off" placeholder="waba_xxxxxxxxxxxxxxxxxxxxx"></label><label>Speichern als<select id="sc-mode"><option value="stored">🔒 Verschlüsselt speichern (1-Klick-Push jederzeit)</option><option value="session">⏱️ Nur diese Sitzung (nicht speichern)</option></select></label><div class="actions"><button class="btn-save" id="sc-save">Prüfen &amp; speichern</button><button class="btn-reset hidden" id="sc-del">Entfernen</button></div><div id="sc-msg" class="hidden"></div></div>';
+const SC_CONN_HTML = '<h3 style="margin-top:18px">SuperChat-Verbindung</h3><p class="placeholder">Hinterlege deinen SuperChat-API-Key (in SuperChat unter Einstellungen › Integrationen › API-Key), um Vorlagen per Knopfdruck in deinen Account einzureichen. Der Schlüssel wird verschlüsselt gespeichert und nie angezeigt — deine WhatsApp-Verbindung wird automatisch erkannt.</p><div class="edit" id="sc-conn"><div id="sc-status" class="sub">lädt…</div><label>SuperChat-API-Key<input type="password" id="sc-key" autocomplete="off" placeholder="Dein SuperChat-API-Key"></label><label>Speichern als<select id="sc-mode"><option value="stored">🔒 Verschlüsselt speichern (1-Klick-Push jederzeit)</option><option value="session">⏱️ Nur diese Sitzung (nicht speichern)</option></select></label><div class="actions"><button class="btn-save" id="sc-save">Prüfen &amp; speichern</button><button class="btn-reset hidden" id="sc-del">Entfernen</button></div><div id="sc-msg" class="hidden"></div></div>';
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -750,9 +750,8 @@ async function loadSuperchatStatus() {
     const s = await api('GET', '/api/vor/superchat-key');
     if (s.configured) {
       const modeLbl = s.mode === 'session' ? 'nur Sitzung' : (s.hasStoredKey ? 'verschlüsselt gespeichert' : 'kein Key gespeichert');
-      el.innerHTML = `✅ Verbunden — WABA <code>${esc(s.wabaId || '')}</code> · ${esc(modeLbl)}. Zum Ändern Key neu eingeben.`;
+      el.innerHTML = `✅ Verbunden — WhatsApp-Account erkannt · ${esc(modeLbl)}. Zum Ändern Key neu eingeben.`;
       del.classList.remove('hidden');
-      if (s.wabaId) $('#sc-waba').value = s.wabaId;
       if (s.mode) $('#sc-mode').value = s.mode;
     } else {
       el.textContent = 'Noch keine SuperChat-Verbindung hinterlegt.';
@@ -763,20 +762,19 @@ async function loadSuperchatStatus() {
 // AI-generated: VOR-9 — Key validieren + speichern via Server-Hook
 async function saveSuperchatKey() {
   const apiKey = $('#sc-key').value.trim();
-  const wabaId = $('#sc-waba').value.trim();
   const mode = $('#sc-mode').value;
   const msg = $('#sc-msg'), btn = $('#sc-save');
   msg.className = 'hidden';
   if (!apiKey) { msg.className = 'error'; msg.textContent = 'Bitte API-Key eingeben.'; return; }
   btn.disabled = true; btn.textContent = 'Prüfe…';
   try {
-    const r = await api('POST', '/api/vor/superchat-key', { apiKey, wabaId, mode });
+    const r = await api('POST', '/api/vor/superchat-key', { apiKey, mode });
     if (r.ok && r.validated) {
       $('#sc-key').value = '';
       if (mode === 'session') sessionStorage.setItem('sc_session_key', apiKey);
       else sessionStorage.removeItem('sc_session_key');
       msg.className = 'ok-msg';
-      msg.textContent = `✓ Verbunden (${esc(r.masked)}) — ${mode === 'stored' ? 'verschlüsselt gespeichert' : 'nur für diese Sitzung'}.`;
+      msg.textContent = `✓ Verbunden${r.channelName ? ' (' + esc(r.channelName) + ')' : ''} — ${mode === 'stored' ? 'verschlüsselt gespeichert' : 'nur für diese Sitzung'}.`;
       loadSuperchatStatus(); refreshScButton();
     } else {
       msg.className = 'error'; msg.textContent = 'Fehler: ' + (r.error || 'Key nicht akzeptiert.');
@@ -791,7 +789,6 @@ async function deleteSuperchatKey() {
     await api('DELETE', '/api/vor/superchat-key');
     sessionStorage.removeItem('sc_session_key');
     msg.className = 'ok-msg'; msg.textContent = '✓ Verbindung entfernt.';
-    $('#sc-waba').value = '';
     loadSuperchatStatus(); refreshScButton();
   } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
 }
