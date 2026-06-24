@@ -194,7 +194,14 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     } else {
       let detail = "";
       try { detail = res.json ? JSON.stringify(res.json) : ""; } catch (_) { detail = ""; }
-      errMsg = "SuperChat " + res.statusCode + (detail ? (": " + detail.slice(0, 400)) : "");
+      // Bekannter SuperChat-API-Bug (Stand 2026-06-24): POST /templates crasht mit HTTP 500,
+      // sobald ein Template 2+ Variablen hat (1 Variable funktioniert). Verifiziert via Repro;
+      // SuperChat-Support kontaktiert. Bis zum Fix: klare Meldung statt rohem "SuperChat 500".
+      if (res.statusCode >= 500 && (content.variables || []).length >= 2) {
+        errMsg = "Diese Vorlage hat mehrere Variablen — die kann SuperChat aktuell nicht per Knopfdruck annehmen (bekannter SuperChat-Fehler, gemeldet). Bitte diese Vorlage vorerst direkt in SuperChat anlegen. Vorlagen mit höchstens einer Variable funktionieren.";
+      } else {
+        errMsg = "SuperChat " + res.statusCode + (detail ? (": " + detail.slice(0, 400)) : "");
+      }
     }
 
     // Audit-Log

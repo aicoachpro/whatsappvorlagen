@@ -1,5 +1,12 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-06-24
+
+### SuperChat-Bug bei 2+ Variablen abgefangen (VOR-9)
+- Live-E2E-Test ergab: SuperChats `POST /v1.0/templates` crasht reproduzierbar mit **HTTP 500 bei Templates mit 2+ Variablen** (1 Variable funktioniert). Externer SuperChat-Bug, nicht unser Code (Schema/Mapping verifiziert korrekt). Re-Test 2026-06-24: weiterhin 500. SuperChat-Support-Repro liegt vor.
+- `pb_hooks/superchat_push.pb.js`: Multi-Var-500 wird jetzt mit klarer Kundenmeldung abgefangen („Vorlage mit mehreren Variablen — SuperChat kann das aktuell nicht per Knopfdruck annehmen, bitte direkt in SuperChat anlegen") statt rohem „SuperChat 500". Greift auch im Bulk-Push (gleiche Route).
+- Einzel-Variablen-Templates bleiben voll push-fähig.
+
 ## 2026-06-22
 
 ### Variablen-Templates push-fähig — `attribute_identifier` geklärt (VOR-9)
