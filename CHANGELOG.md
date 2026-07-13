@@ -1,5 +1,16 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-07-13
+
+### Health-Check: Telegram-Fehlalarme abgestellt (VOR-15)
+- **Befund:** 9 Telegram-Störungsmeldungen in 4 Tagen (1× 10.07., 3× 11.07., 5× 12.07.) — **alle Fehlalarme**, die Plattform lief durchgehend. Jeder Fehl-Run zeigte dasselbe Muster `PB=0 Site=0 Hook=0`: Status 0 = `fetch` hat geworfen, es kam gar keine HTTP-Antwort an. Nie ein echter Fehlercode (kein 502/503) — bei einem realen Ausfall hätte Traefik mindestens einmal einen 5xx geliefert. Telegram ging in denselben Runs raus (`gesendet ✓`), der Runner hatte also Netz, kam aber nicht an den VPS. Ursache: **GitHub-Runner erreichen den VPS sporadisch nicht**, `health-check.js` hatte keinen Retry und alarmierte beim ersten Blip.
+- `agents/health-check.js`: **Retry pro Check** (3 Versuche, Backoff — fängt Sekunden-Blips) + **Gegenprobe nach 90s** (fängt Minuten-Blips). Alarm erst, wenn die Störung beides überlebt. Echte Ausfälle werden weiterhin gemeldet, nur ~90s später. Verifiziert gegen Mock-PB: Blip (30s tot → gesund) = kein Alarm/exit 0; Totalausfall = Telegram/exit 1.
+- **Fehlergrund landet jetzt im Log**, nicht nur im Telegram — vorher wurde `err` weggeworfen und die Ursache war nachträglich nicht diagnostizierbar. Node verpackt Netzwerkfehler als nichtssagendes `TypeError: fetch failed`; der echte Grund steckt in `e.cause` und wird jetzt ausgelesen: `PB=ECONNREFUSED` (Server weg) vs. `PB=Timeout nach 15s` (Verbindung hängt, Firewall/Netz).
+- **Hook-Check war falsch-negativ:** prüfte nur auf 404 und 0 — ein 500/502 galt als bestanden, obwohl der Docstring „→ 401" versprach. Prüft jetzt auf 401; 5xx = Störung (gegen Mock verifiziert). 5xx wird zusätzlich als transient-verdächtig behandelt und wiederholt.
+- `telegram()` hatte **keinen Timeout** (anders als in `check-tenant-expiry.js`) und verschluckte Versandfehler — beides gefixt.
+- `agents/check-tenant-expiry.js`: `mailByTenant` **überschrieb** bei mehreren Nutzern pro Mandant (willkürlich der letzte gewann → falsche Kontakt-Mail in der Meldung). Zeigt jetzt alle Adressen.
+- `pb_hooks/telegram_notify.pb.js`: Registrierungs-Meldung las nur `name`, während der restliche Code `firma || name` nutzt — bei gepflegtem `firma`-Feld stand dort nur die E-Mail.
+
 ## 2026-06-24
 
 ### SuperChat-Bug bei 2+ Variablen abgefangen (VOR-9)

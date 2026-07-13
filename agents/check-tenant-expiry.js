@@ -53,8 +53,10 @@ async function telegram(text) {
   TOK = (await pb('POST', '/api/collections/_superusers/auth-with-password', { identity: PB_EMAIL, password: PB_PASS })).token;
   const tenants = (await pb('GET', '/api/collections/tenants/records?perPage=500')).items;
   const users = (await pb('GET', '/api/collections/users/records?perPage=500')).items;
-  const mailByTenant = {};
-  for (const u of users) if (u.tenant && u.role !== 'admin') mailByTenant[u.tenant] = u.email;
+  // Mehrere Nutzer pro Mandant sind möglich — alle zeigen, sonst gewinnt willkürlich der letzte (VOR-15)
+  const mailsByTenant = {};
+  for (const u of users) if (u.tenant && u.role !== 'admin') (mailsByTenant[u.tenant] ||= []).push(u.email);
+  const mails = (tid) => (mailsByTenant[tid] || []).join(', ') || '?';
 
   const soon = [], justExpired = [];
   for (const t of tenants) {
@@ -95,15 +97,15 @@ async function telegram(text) {
   }
   if (renewals.length) {
     msg += '\n💶 Verlängerung ANGEFRAGT (Kunde wartet):\n';
-    for (const r of renewals) { const t = tById[r.tenant]; msg += `• ${t.firma || t.name} (${mailByTenant[r.tenant] || '?'})\n`; }
+    for (const r of renewals) { const t = tById[r.tenant]; msg += `• ${t.firma || t.name} (${mails(r.tenant)})\n`; }
   }
   if (soon.length) {
     msg += '\n⏰ Läuft bald ab (verlängern?):\n';
-    for (const { t, d } of soon) msg += `• ${t.firma || t.name} (${mailByTenant[t.id] || '?'}) — in ${d} Tg. (${fmt(t.expires_at)})\n`;
+    for (const { t, d } of soon) msg += `• ${t.firma || t.name} (${mails(t.id)}) — in ${d} Tg. (${fmt(t.expires_at)})\n`;
   }
   if (justExpired.length) {
     msg += '\n🔴 Soeben abgelaufen — Zugang gesperrt:\n';
-    for (const t of justExpired) msg += `• ${t.firma || t.name} (${mailByTenant[t.id] || '?'})\n`;
+    for (const t of justExpired) msg += `• ${t.firma || t.name} (${mails(t.id)})\n`;
   }
   msg += '\n→ Verlängern: ' + PB_URL + '/  (Kunden verwalten → +1 Jahr)';
   if (DRY) { console.log('[DRY-RUN] Telegram-Nachricht:\n' + msg); return; }
