@@ -1,5 +1,22 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-07-14
+
+### Ursache der Health-Check-Fehlalarme gefunden (VOR-15)
+**Der VPS verwirft die Pakete einzelner GitHub-Runner-IPs stillschweigend (DROP). Der Server ist gesund, Kunden sind nicht betroffen.**
+
+Beweisführung:
+- **IP-spezifisch, nicht Server-Problem:** 20 Runner kontaktierten den Server *gleichzeitig* — 19 kamen durch (HTTP 200, connect ~0,2s), **einer lief in den Timeout** (`48.217.107.113`, connect=0.000000s). Derselbe Server, dieselbe Sekunde. Quote 1/20 = 5 %, deckt sich mit der Produktionsrate (12 Fehl-Runs seit 07.07.).
+- **Server nachweislich gesund:** Hostinger-Metriken zu allen 5 Ausfallzeitpunkten am 12.07.: CPU **0,61–0,67 %**, RAM 1,55/8 GB, Uptime monoton steigend (**kein Neustart**), Traffic unauffällig. Überlastung, Crash und Reboot sind damit ausgeschlossen.
+- **DROP, nicht REJECT:** kein RST, kein ICMP, Traceroute stumm („Destination not reached"). **Port 80 ebenfalls dicht** → kein Dienst-/Port-Problem, die ganze IP wird verworfen. Auch nach 60 s noch blockiert.
+- **Nicht die Hostinger-Firewall:** die erlaubt 80/443 von `any`. Gegenprobe: SSH-Regel für die eigene IP angelegt + synchronisiert → **Port 22 blieb trotzdem DROP** (8 s Timeout, identische Signatur). Es gibt also einen **zweiten Paketfilter auf dem Server selbst** (unterhalb der Hostinger-Firewall) — dort sitzt die Blockade. Regel danach wieder entfernt, Firewall im Ursprungszustand.
+- **Keine Blocklist-Ursache:** die geblockte IP steht zwar auf Spamhaus — aber `172.172.86.230` mit *identischem* Listing-Muster kam gleichzeitig problemlos durch. Widerlegt (Spamhaus `127.0.0.4` trifft Azure-Ranges pauschal).
+- **Kein IPv6-Problem:** kein AAAA-Record, Node löst ausschließlich IPv4 auf.
+
+**Nicht abschließend geklärt:** *welches* Tool auf dem Server bannt (fail2ban / CrowdSec / ufw-Regel). Der Server ist per SSH nicht erreichbar — durch genau denselben DROP-Mechanismus. Weiter käme man nur über einen Recovery-Boot (= Kunden-Downtime), unverhältnismäßig. Vermutung: fail2ban/CrowdSec bannt Azure-IPs mit Scan-Vorgeschichte (durch Vorbesitzer der IP), nicht wegen unseres Monitorings.
+
+**Konsequenz:** Die 90-s-Gegenprobe aus dem Vorgänger-Fix **hilft hier nicht** — beide Prüfrunden laufen auf demselben Runner mit derselben blockierten IP (belegt durch den Fehl-Run 13.07. 23:24 *nach* dem Fix). Von einem einzelnen Punkt aus sind „VPS weg" und „meine IP gebannt" grundsätzlich nicht unterscheidbar. GitHub-Runner sind als Monitoring-Quelle für diesen Server untauglich → Umstieg auf externen Uptime-Dienst mit Multi-Standort-Prüfung (VOR-16).
+
 ## 2026-07-13
 
 ### Health-Check: Telegram-Fehlalarme abgestellt (VOR-15)
