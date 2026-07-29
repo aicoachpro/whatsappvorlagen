@@ -1,5 +1,32 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-07-29 (2)
+
+### Push-Fehler beim Kunden: Server läuft veralteten Hook-Code
+**Symptom:** Herger Verwaltungs GmbH (eigener SuperChat-Key) reicht „AVR 2027 Sie in Automation" ein → `SuperChat 400: Ungültiger Parameter: attribute_identifier`.
+
+**Ursache — nicht kundenspezifisch, sondern ein Deploy-Loch:**
+- Derselbe Fehler steht im `tenant_push_log` auch für Tenant „Thomas Völker" („Allgemeiner Unterhaltungsstarter Du", „Kunde hat gekündig Sie").
+- Das Format, das der Repo-Hook sendet, wird von SuperChat **akzeptiert** — live verifiziert: `{position:1, type:"static", attribute_identifier:"wildcard"}` → **HTTP 200** (Testvorlage sofort gelöscht). Der wildcard-Fallback für Smart-Attribute wie „Informelle Grußformel" funktioniert also.
+- Im Kunden-Screenshot fehlt die wildcard-Warnung, die der aktuelle Hook für genau diese Variable erzeugen würde ([app.js:311](webui/app.js#L311) rendert `p.warnings`).
+- **`pb_hooks/` wird vom Auto-Deploy nicht ausgeliefert** — so dokumentiert in `deploy/vorlagen/README.md` („nur `webui/` → `pb_public/`, **nicht** `pb_hooks/` … bei jeder Hook-Änderung erneut"). Die automatische Variante steht dort als „optional" und wurde nie eingerichtet.
+
+→ Auf dem Server liegt ein Stand **vor Commit `31a1b79`** (attribute_identifier-Mapping, ~22.06.). Der sendet das Feld gar nicht; SuperChat meldet ein fehlendes Pflichtfeld als „Ungültiger Parameter: X". **Fix = Hook-Deploy** (hPanel-Browser-Terminal, SSH ist gesperrt), keine Code-Änderung nötig.
+
+### SuperChat-Multi-Variablen-Bug ist behoben — 195 Vorlagen wieder einreichbar
+Der HTTP-500-Crash ab 2 Variablen (Blocker seit 2026-06-23) existiert nicht mehr. Gegengeprüft: `first_name + wildcard` → 200, `wildcard + wildcard` → 200 (beide Testvorlagen sofort gelöscht). Von 284 aktiven Vorlagen haben 195 zwei oder mehr Variablen — die waren bis jetzt gar nicht per Knopfdruck einreichbar. Der 500er-Zweig im Hook bleibt als Sicherheitsnetz, Kommentar und Kundenmeldung auf den aktuellen Stand gebracht.
+
+### Mehrere Benutzer pro Kunde
+**Befund:** Das Datenmodell konnte das längst — `users.tenant` ist eine Relation, und Overlays, Einstellungen sowie der SuperChat-Key hängen am **Mandanten**, nicht am Benutzer. Es fehlte nur die Oberfläche.
+
+**Kritischer Fallstrick vorab behoben:** `deleteCustomer()` löschte **immer** Benutzer *und* Mandant. Da `tenants` per `cascadeDelete` an den Overlays hängt, hätte das Entfernen einer Person alle Vorlagen-Anpassungen und die SuperChat-Verbindung des gesamten Kunden vernichtet — auch für die verbleibenden Kollegen.
+
+- Kundenliste ist nach Mandant gruppiert (Kopfzeile = Kunde mit Laufzeit-Aktionen, darunter seine Benutzer) statt einer flachen Benutzerliste.
+- **„+ Benutzer"** pro Kunde: legt einen weiteren Login im selben Mandanten an, mit demselben Onboarding wie bei Neukunden (Willkommens-Mail mit Passwort-Link, Backup-Passwort als Fallback).
+- Löschen unterscheidet jetzt: weitere Benutzer vorhanden → nur der Benutzer geht, Mandant und Anpassungen bleiben („Entfernen"); letzter Benutzer → Mandant mit Rückfrage, die die Folgen ausdrücklich benennt.
+
+**Verifiziert gegen Live** (temporäre Testdaten, restlos entfernt): 9/9 — zwei Benutzer im selben Mandanten, beide login-fähig, geteilter Anpassungsstand in beide Richtungen, und nach Entfernen des zweiten Benutzers bleiben Mandant, Anpassung und der erste Benutzer erhalten.
+
 ## 2026-07-29
 
 ### Täglicher Superchat-Sync mit Papierkorb — der Sync lief seit 8 Wochen gar nicht

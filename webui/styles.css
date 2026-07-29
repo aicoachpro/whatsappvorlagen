@@ -163,8 +163,13 @@ button{cursor:pointer;font:inherit}
 
 /* Kundenverwaltung */
 .ok-msg{background:linear-gradient(180deg,#e6fbd6,#dcf8c6);color:#1a7a3a;padding:11px 12px;border-radius:10px;font-size:13px;border:1px solid #c4ecaa}
-.cust-list{display:flex;flex-direction:column;gap:9px}
-.cust-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow-sm)}
+.cust-list{display:flex;flex-direction:column;gap:12px}
+/* Ein Kunde = eine Gruppe (Mandant + seine Benutzer). Kopf trägt die Mandanten-Aktionen. */
+.cust-group{border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow-sm);overflow:hidden}
+.cust-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#f8fafb;border-bottom:1px solid var(--line)}
+.cust-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid #f0f4f6;background:#fff}
+.cust-group .cust-row:first-of-type{border-top:0}
+.cust-user{font-size:13.5px;color:var(--ink)}
 .cust-mail{font-weight:700;font-size:14px}
 .cust-sub{color:var(--muted);font-size:12px}
 .cust-act{display:flex;gap:6px;flex:none}
@@ -222,6 +227,6 @@ button{cursor:pointer;font:inherit}
   .gallery{padding:14px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:13px}
   .modal{padding:0;place-items:stretch}
   .modal-card{max-width:100%;max-height:100vh;border-radius:0;padding:20px}
-  .cust-row{flex-direction:column;align-items:flex-start}
+  .cust-row,.cust-head{flex-direction:column;align-items:flex-start}
   .cust-act{width:100%;justify-content:flex-end}
 }

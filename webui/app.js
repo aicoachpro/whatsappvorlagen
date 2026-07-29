@@ -432,6 +432,7 @@ async function openAdmin() {
     const tById = Object.fromEntries(tenants.items.map(t => [t.id, t]));
     const renewalSet = new Set((rr.items || []).filter(r => !r.handled).map(r => r.tenant));
     const customers = users.items.filter(u => u.role !== 'admin');
+    STATE.adminCustomers = customers;   // deleteCustomer() braucht die Geschwister im Mandanten
     renderAdmin(customers, tById, renewalSet);
   } catch (e) { $('#admin-body').innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
 }
@@ -448,11 +449,17 @@ function ablaufBadge(t) {
   return `<span class="cust-sub">aktiv bis ${datum}</span>`;
 }
 function renderAdmin(customers, tById, renewalSet = new Set()) {
-  // ablaufende/abgelaufene zuerst
-  customers.sort((a, b) => {
-    const da = daysUntil(tById[a.tenant]?.expires_at) ?? 9999, db = daysUntil(tById[b.tenant]?.expires_at) ?? 9999;
-    return da - db;
-  });
+  // Nach Mandant gruppieren: ein Kunde darf mehrere Benutzer haben. Overlays, Einstellungen und
+  // die SuperChat-Verbindung hängen am Mandanten, nicht am Benutzer — alle teilen sich also
+  // denselben Stand. Gruppen mit ablaufender Lizenz zuerst.
+  const byTenant = new Map();
+  for (const u of customers) {
+    const key = u.tenant || '_ohne';
+    if (!byTenant.has(key)) byTenant.set(key, []);
+    byTenant.get(key).push(u);
+  }
+  const gruppen = [...byTenant.entries()].sort((a, b) =>
+    (daysUntil(tById[a[0]]?.expires_at) ?? 9999) - (daysUntil(tById[b[0]]?.expires_at) ?? 9999));
   $('#admin-body').innerHTML = `
     <div class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
       <h3>Mein Admin-Zugang</h3>
@@ -466,7 +473,7 @@ function renderAdmin(customers, tById, renewalSet = new Set()) {
       <div id="adm-pw-msg" class="hidden"></div>
     </div>
     <h2>Kunden verwalten</h2>
-    <p class="sub">${customers.length} Kunde(n)</p>
+    <p class="sub">${gruppen.length} Kunde(n) · ${customers.length} Benutzer</p>
     <form id="cust-form" class="edit" style="border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:18px">
       <h3>Neuen Kunden anlegen</h3>
       <label>Firma / Mandant (intern)<input type="text" id="c-name" required placeholder="z. B. Muster GmbH"></label>
@@ -491,19 +498,29 @@ function renderAdmin(customers, tById, renewalSet = new Set()) {
       <div id="csv-preview"></div>
     </div>
     <h3>Bestehende Kunden</h3>
+    <p class="placeholder">Ein Kunde kann mehrere Benutzer haben — sie teilen sich Vorlagen-Anpassungen, Einstellungen und die SuperChat-Verbindung.</p>
     <div class="cust-list">
-      ${customers.length ? customers.map(u => {
-        const t = tById[u.tenant];
-        return `<div class="cust-row" data-uid="${u.id}" data-tid="${u.tenant || ''}">
-          <div><div class="cust-mail">${esc(u.email)}</div>
-            <div class="cust-sub">${esc(t?.firma || t?.name || '— kein Mandant')}</div>
-            <div style="margin-top:3px">${ablaufBadge(t)}${(renewalSet.has(u.tenant) && t && t.status !== 'active') ? ' <span class="badge mk">💶 Verlängerung angefragt</span>' : ''}</div></div>
-          <div class="cust-act">
-            ${t ? '<button class="mini" data-act="lz">Laufzeit</button>' : ''}
-            ${t ? '<button class="mini" data-act="ext">+1 Jahr</button>' : ''}
-            <button class="mini" data-act="pw">Passwort</button>
-            <button class="mini danger" data-act="del">Löschen</button>
-          </div></div>`;
+      ${gruppen.length ? gruppen.map(([tid, us]) => {
+        const t = tById[tid];
+        const renew = (renewalSet.has(tid) && t && t.status !== 'active') ? ' <span class="badge mk">💶 Verlängerung angefragt</span>' : '';
+        return `<div class="cust-group" data-tid="${t ? tid : ''}">
+          <div class="cust-head">
+            <div><div class="cust-mail">${esc(t?.firma || t?.name || '— kein Mandant')}</div>
+              <div class="cust-sub">${us.length} Benutzer</div>
+              <div style="margin-top:3px">${ablaufBadge(t)}${renew}</div></div>
+            <div class="cust-act">
+              ${t ? '<button class="mini" data-act="lz">Laufzeit</button>' : ''}
+              ${t ? '<button class="mini" data-act="ext">+1 Jahr</button>' : ''}
+              ${t ? '<button class="mini" data-act="adduser">+ Benutzer</button>' : ''}
+            </div>
+          </div>
+          ${us.map(u => `<div class="cust-row" data-uid="${u.id}" data-tid="${u.tenant || ''}">
+            <div class="cust-user">${esc(u.email)}</div>
+            <div class="cust-act">
+              <button class="mini" data-act="pw">Passwort</button>
+              <button class="mini danger" data-act="del">${us.length > 1 ? 'Entfernen' : 'Löschen'}</button>
+            </div></div>`).join('')}
+        </div>`;
       }).join('') : '<p class="placeholder">Noch keine Kunden.</p>'}
     </div>`;
   $('#c-pass').value = genPass();
@@ -513,13 +530,42 @@ function renderAdmin(customers, tById, renewalSet = new Set()) {
   $('#csv-read').onclick = csvImportPreview;
   $('#adm-pw-save').onclick = changeOwnPassword;
   $('#adm-pw-gen').onclick = () => { $('#adm-pass').value = genPass(); };
-  $$('.cust-row .mini').forEach(b => b.onclick = (e) => {
+  $$('.cust-group .mini').forEach(b => b.onclick = (e) => {
+    const grp = e.target.closest('.cust-group');
     const row = e.target.closest('.cust-row');
-    if (b.dataset.act === 'pw') resetCustomerPass(row.dataset.uid);
-    else if (b.dataset.act === 'ext') extendTenant(row.dataset.tid);
-    else if (b.dataset.act === 'lz') editLaufzeit(row.dataset.tid);
-    else deleteCustomer(row.dataset.uid, row.dataset.tid);
+    const act = b.dataset.act;
+    if (act === 'pw') resetCustomerPass(row.dataset.uid);
+    else if (act === 'del') deleteCustomer(row.dataset.uid, row.dataset.tid);
+    else if (act === 'ext') extendTenant(grp.dataset.tid);
+    else if (act === 'lz') editLaufzeit(grp.dataset.tid);
+    else if (act === 'adduser') addUserToTenant(grp.dataset.tid);
   });
+}
+
+/* ─── Weiteren Benutzer zu einem bestehenden Kunden anlegen ─────────────────── */
+// Mehrere Mitarbeiter eines Kunden arbeiten am selben Vorlagen-Stand: Overlays, Einstellungen
+// und SuperChat-Key hängen am Mandanten. Der neue Benutzer bekommt denselben Onboarding-Weg
+// wie ein Neukunde (Willkommens-Mail mit Passwort-Link, Backup-Passwort als Fallback).
+async function addUserToTenant(tid) {
+  if (!tid) return;
+  const email = (prompt('E-Mail des weiteren Benutzers:') || '').trim();
+  if (!email) return;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { alert('Das sieht nicht nach einer E-Mail-Adresse aus.'); return; }
+  const pass = genPass();
+  try {
+    await api('POST', '/api/collections/users/records',
+      { email, password: pass, passwordConfirm: pass, tenant: tid, role: 'customer', emailVisibility: false });
+    let mailed = false;
+    try { await api('POST', '/api/collections/users/request-password-reset', { email }); mailed = true; } catch (_) {}
+    alert(mailed
+      ? `Benutzer ${email} angelegt.\n\nEine Willkommens-Mail mit Passwort-Link ist unterwegs.\n\nBackup-Passwort, falls keine Mail ankommt:\n${pass}`
+      : `Benutzer ${email} angelegt.\n\nMailversand nicht möglich — bitte Zugangsdaten manuell weitergeben:\nLogin: ${location.origin}/\nE-Mail: ${email}\nPasswort: ${pass}`);
+    openAdmin();
+  } catch (e) {
+    alert(/already exists|unique/i.test(e.message)
+      ? `Es gibt bereits einen Zugang mit der E-Mail ${email}.`
+      : 'Anlegen fehlgeschlagen: ' + e.message);
+  }
 }
 // Onboarding-Felder → ersetzungen-Liste
 function buildErsetzungen() {
@@ -721,7 +767,22 @@ async function resetCustomerPass(uid) {
   } catch (e) { alert('Fehler: ' + e.message); }
 }
 async function deleteCustomer(uid, tid) {
-  if (!confirm('Diesen Kunden inkl. Mandant und allen Anpassungen löschen?')) return;
+  // Hat der Mandant weitere Benutzer, darf NUR der Benutzer weg — `tenants` löscht per
+  // cascadeDelete alle Overlays mit, das würde sonst die Arbeit der Kollegen vernichten.
+  const geschwister = (STATE.adminCustomers || []).filter(u => u.tenant && u.tenant === tid && u.id !== uid);
+  const user = (STATE.adminCustomers || []).find(u => u.id === uid);
+  const wer = user ? user.email : 'diesen Benutzer';
+
+  if (tid && geschwister.length) {
+    if (!confirm(`Benutzer ${wer} entfernen?\n\nDer Kunde bleibt bestehen (${geschwister.length} weitere${geschwister.length === 1 ? 'r' : ''} Benutzer). Vorlagen-Anpassungen, Einstellungen und die SuperChat-Verbindung bleiben erhalten.`)) return;
+    try {
+      await api('DELETE', `/api/collections/users/records/${uid}`);
+      openAdmin();
+    } catch (e) { alert('Fehler: ' + e.message); }
+    return;
+  }
+
+  if (!confirm(`${wer} ist der letzte Benutzer dieses Kunden.\n\nLöschen entfernt den kompletten Mandanten — inklusive aller Vorlagen-Anpassungen, Einstellungen und der SuperChat-Verbindung. Das lässt sich nicht rückgängig machen.\n\nWirklich löschen?`)) return;
   try {
     await api('DELETE', `/api/collections/users/records/${uid}`);
     if (tid) await api('DELETE', `/api/collections/tenants/records/${tid}`).catch(() => {});
