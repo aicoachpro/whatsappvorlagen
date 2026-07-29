@@ -1,5 +1,14 @@
 # WhatsAppVorlagen SuperChat — AI System Reference
 
+## Aufgaben- & Doku-Plattform (SSoT) — verbindlich
+
+- **SSoT für Aufgaben UND Doku ist der Obsidian-Vault „TheBrain"** (PARA), Aufgaben im **TaskNotes**-Format.
+  - Aufgaben-Zentrale: `TaskNotes/_Aufgaben-Hub.md`
+  - Projekt-Key dieses Repos: `whatsappvorlagen` → im Task-Frontmatter `projects: [whatsappvorlagen]`
+- **Kein Code ohne Aufgabe:** jede Änderung startet mit einer TaskNote (`status: open → in-progress → done`), nicht mit einem Linear-/Huly-Issue.
+- **Linear & Huly sind abgelöst** (Linear verlassen, Huly abgeschaltet). Alte `VOE-`/`MT-`/`CTS-`/`VOR-`-Verweise sind historisch.
+
+
 **Version:** 1.0.0 | **Stand:** 2026-05-04
 **Repository:** github.com/aicoachpro/whatsappvorlagen
 
@@ -18,7 +27,7 @@ Vor jeder Arbeit lesen: **[ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)** (Hu
 
 ## Regeln (NIEMALS)
 
-1. **NIEMALS** Code ändern ohne Huly Issue (Workspace `VOELKER AI`, Projekt `WhatsAppVorlagen SuperChat`, Prefix `VOR-`). Linear/`VOE-` ist seit 2026-06-19 nur noch Historie.
+1. **NIEMALS** Code ändern ohne **TaskNote** (Obsidian `TaskNotes/`, `projects: [whatsappvorlagen]`) — Status open→in-progress→done. *(früher: Linear-/Huly-Issue; abgelöst.)*
 2. **NIEMALS** Issue schließen ohne Git Push + Changelog
 3. **NIEMALS** API Keys im Chat — User trägt direkt in `.env` ein
 4. **NIEMALS** Issue ohne Labels anlegen

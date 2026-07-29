@@ -17,7 +17,7 @@ Backlog-Adapter, Governance-Modus und aktive Gates.
 
 | Gate | Mechanismus | Status |
 |------|-------------|--------|
-| Spec-Gate | Kein Code ohne Huly-Issue (`VOR-`) — CLAUDE.md-Regel 1 | aktiv (manuell/Konvention) |
+| Spec-Gate | Kein Code ohne TaskNote (Obsidian)| aktiv (manuell/Konvention) |
 | Doc-Version-Sync | `lib/config.js` VERSION = SSoT; `agents/self-healing.js` prüft Versions-Drift der DOC_FILES | aktiv (Self-Healing) |
 | Secret-Schutz | Nie `.env`/Keys committen oder loggen; Telefonnummern maskieren | aktiv (Konvention + .gitignore) |
 | Compliance | Meta WhatsApp Business Policy + DSGVO vor Versand/Push | aktiv (Konvention) |
