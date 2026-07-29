@@ -37,12 +37,19 @@ Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, S
 - **ADR-02 Stack: PocketBase + Docker + Traefik** auf bestehendem VPS-Hausmuster — §5 des Konzepts.
 - **ADR-03 Auto-Deploy via Git-Pull-Cron** (read-only Deploy-Key), da SSH-Push netzseitig gedrosselt — deploy/vorlagen/README.md.
 - **ADR-04 Kunden-UI als Vanilla-SPA in `pb_public/`** (kein Framework/CDN, DSGVO-freundlich).
+- **ADR-05 Sync-Löschungen als Papierkorb, nicht als Hard-Delete** (2026-07-29). Superchat ist Master
+  und gewinnt bei allen Feldern, die es liefert. Verschwundene Vorlagen bekommen `geloescht_am` gesetzt
+  statt gelöscht zu werden — als Flag im Record, **nicht** als eigene Collection, weil `template_overlays`
+  per `cascadeDelete` an `templates` hängt und ein Umzug die Kunden-Personalisierungen mitrisse.
+  Endgültiges Löschen ist ein bewusster Admin-Klick im „Gelöscht"-Tab. Gegen Teilantworten der
+  Superchat-API schützt eine 10%-Schwelle (Abbruch + Telegram statt Massen-Papierkorb).
+  Sichtbarkeit serverseitig über die `listRule`, nicht nur im Frontend.
 
 ## §4 Komponenten-Übersicht
 
 | Komponente | Pfad | Zweck |
 |---|---|---|
-| Superchat-Sync | `agents/sync-superchat-to-pb.js` | Master-Katalog → PocketBase |
+| Superchat-Sync | `agents/sync-superchat-to-pb.js` + `.github/workflows/sync-superchat.yml` | Master-Katalog → PocketBase, täglich 05:00 UTC (Upsert + Papierkorb + Heartbeat, ADR-05) |
 | Header-Media / Ordner / Kategorie | `agents/{sync-header-media,fill-ordner,derive-kategorie}-*.js` | Datenqualität |
 | Tenancy/User-Mgmt-Setup | `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js`, `agents/setup-tenant-settings.js`, `agents/setup-tenant-secrets.js` | Collections + API-Rules (inkl. `tenant_settings`, VOR-8; `tenant_secrets` superuser-only, VOR-9) |
 | Server-Hooks | `pb_hooks/superchat_creds.pb.js`, `pb_hooks/superchat_push.pb.js` | PocketBase-JS-Hooks: verschlüsselte Per-Tenant-Anbindung (AES-256-GCM, `SUPERCHAT_ENC_KEY`) + Push = Meta-Einreichung (effektive Vorlage serverseitig, Ordner-Auto, Audit `tenant_push_log`), VOR-9 |

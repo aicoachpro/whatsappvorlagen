@@ -147,27 +147,46 @@ function bubbleHtml(t) {
 }
 
 /* ─── Galerie ──────────────────────────────────────────────────────────── */
+// Papierkorb: Vorlagen mit `geloescht_am` gibt es in Superchat nicht mehr. Kunden bekommen
+// sie serverseitig gar nicht erst geliefert (listRule); der Admin sieht sie in einem eigenen
+// Tab und löscht dort endgültig — einzeln oder alle. Siehe agents/sync-superchat-to-pb.js.
+const TRASH_KEY = '__geloescht__';
+const trashDatum = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('.');
+
 function render() {
   $('#who').textContent = store.user?.email || '';
-  const cats = ['Alle', ...new Set(STATE.templates.map(t => t.ordner).filter(Boolean))].slice(0, 40);
-  $('#filters').innerHTML = cats.map(c =>
+  const aktiv     = STATE.templates.filter(t => !t.geloescht_am);
+  const geloescht = STATE.templates.filter(t => t.geloescht_am);
+  const trashOn   = STATE.filter === TRASH_KEY;
+
+  const cats = ['Alle', ...new Set(aktiv.map(t => t.ordner).filter(Boolean))].slice(0, 40);
+  let chips = cats.map(c =>
     `<button class="chip ${c === STATE.filter ? 'active' : ''}" data-f="${esc(c)}">${esc(c)}</button>`).join('');
+  if (isAdmin() && geloescht.length)
+    chips += `<button class="chip trash ${trashOn ? 'active' : ''}" data-f="${TRASH_KEY}">🗑 Gelöscht (${geloescht.length})</button>`;
+  $('#filters').innerHTML = chips;
 
   const q = STATE.q.toLowerCase();
-  let items = STATE.templates.map(effective).filter(t => {
-    if (STATE.filter !== 'Alle' && t.ordner !== STATE.filter) return false;
+  let items = (trashOn ? geloescht : aktiv).map(effective).filter(t => {
+    if (!trashOn && STATE.filter !== 'Alle' && t.ordner !== STATE.filter) return false;
     if (q && !(`${t.name} ${t.body} ${t.ordner}`.toLowerCase().includes(q))) return false;
     return true;
   });
   $('#empty').classList.toggle('hidden', items.length > 0);
 
+  const kopf = trashOn ? `<div class="trash-bar">
+      <div><b>Papierkorb</b> — ${geloescht.length} Vorlage${geloescht.length === 1 ? '' : 'n'}, die es in Superchat nicht mehr gibt.
+      Deine Kunden sehen sie bereits nicht mehr. Tauchen sie in Superchat wieder auf, holt der nächste Sync sie automatisch zurück.</div>
+      <button class="btn-reset" id="trash-empty">Alle ${geloescht.length} endgültig löschen</button>
+    </div>` : '';
+
   const groups = {};
   for (const t of items) (groups[t.ordner || 'Ohne Ordner'] ||= []).push(t);
-  $('#gallery').innerHTML = Object.keys(groups).sort().map(g =>
-    `<div class="group-title">${esc(g)}</div>${groups[g].map(card).join('')}`).join('');
+  $('#gallery').innerHTML = kopf + Object.keys(groups).sort().map(g =>
+    `<div class="group-title">${esc(g)}</div>${groups[g].map(t => card(t, trashOn)).join('')}`).join('');
 }
 
-function card(t) {
+function card(t, trash = false) {
   const img = fileURL(t);
   const cover = img ? `<img src="${img}" loading="lazy" alt="">` : `<span class="noimg">💬</span>`;
   const katBadge = t.kategorie === 'Marketing' ? `<span class="badge mk">Marketing</span>`
@@ -177,13 +196,45 @@ function card(t) {
   const btnBadge = nBtn ? `<span class="badge btn-b">${nBtn} Button${nBtn > 1 ? 's' : ''}</span>` : '';
   const edited = t._ov ? `<span class="badge edited">bearbeitet</span>` : '';
   const hidden = t.hidden ? `<span class="badge hidden-b">ausgeblendet</span>` : '';
-  return `<article class="card" data-id="${t.id}">
+  const weg    = trash ? `<span class="badge hidden-b">gelöscht am ${esc(trashDatum(t.geloescht_am))}</span>` : '';
+  const delBtn = trash ? `<button class="mini danger" data-del="${t.id}">Endgültig löschen</button>` : '';
+  return `<article class="card${trash ? ' is-trash' : ''}" data-id="${t.id}">
     <div class="card-cover">${cover}</div>
     <div class="card-body">
       <div class="card-name">${esc(t.name)}</div>
       <div class="card-text">${bodyHtml((t.body || '').slice(0, 120), t.variables)}</div>
-      <div class="badges">${katBadge}${btnBadge}${edited}${hidden}</div>
+      <div class="badges">${katBadge}${btnBadge}${edited}${hidden}${weg}</div>
+      ${delBtn}
     </div></article>`;
+}
+
+/* ─── Papierkorb leeren (nur Admin; deleteRule der Collection erzwingt das serverseitig) ── */
+async function deleteEndgueltig(id) {
+  const t = STATE.templates.find(x => x.id === id);
+  if (!confirm(`„${t?.name || 'Vorlage'}" endgültig löschen?\n\nDas lässt sich nicht rückgängig machen. Kunden-Anpassungen zu dieser Vorlage werden mitgelöscht.`)) return;
+  try {
+    await api('DELETE', `/api/collections/templates/records/${id}`);
+    STATE.templates = STATE.templates.filter(x => x.id !== id);
+    if (!STATE.templates.some(x => x.geloescht_am)) STATE.filter = 'Alle';
+    render();
+  } catch (e) { alert('Löschen fehlgeschlagen: ' + e.message); }
+}
+
+async function emptyTrash() {
+  const weg = STATE.templates.filter(t => t.geloescht_am);
+  if (!weg.length) return;
+  if (!confirm(`Alle ${weg.length} Vorlagen im Papierkorb endgültig löschen?\n\nDas lässt sich nicht rückgängig machen. Kunden-Anpassungen zu diesen Vorlagen werden mitgelöscht.`)) return;
+  const btn = $('#trash-empty');
+  if (btn) { btn.disabled = true; btn.textContent = 'Löscht…'; }
+  let fail = 0;
+  for (const t of weg) {
+    try { await api('DELETE', `/api/collections/templates/records/${t.id}`); }
+    catch { fail++; }
+  }
+  STATE.filter = 'Alle';
+  await loadData();
+  render();
+  if (fail) alert(`${fail} Vorlage(n) konnten nicht gelöscht werden.`);
 }
 
 /* ─── Detail / Edit ────────────────────────────────────────────────────── */
@@ -896,7 +947,14 @@ async function requestRenewal() {
 }
 
 document.addEventListener('click', (e) => {
-  const card = e.target.closest('.card'); if (card) return openModal(card.dataset.id);
+  // Papierkorb-Aktionen zuerst — sonst öffnet der Klick die Karte statt zu löschen.
+  const del = e.target.closest('[data-del]');
+  if (del) { e.stopPropagation(); return deleteEndgueltig(del.dataset.del); }
+  if (e.target.id === 'trash-empty') return emptyTrash();
+  // Papierkorb-Karten öffnen keinen Detail-Dialog — sonst ließe sich von dort eine
+  // in Superchat bereits gelöschte Vorlage bei Meta einreichen.
+  const card = e.target.closest('.card');
+  if (card) { if (card.classList.contains('is-trash')) return; return openModal(card.dataset.id); }
   const chip = e.target.closest('.chip'); if (chip) { STATE.filter = chip.dataset.f; render(); }
 });
 $('#login-form').addEventListener('submit', async (e) => {

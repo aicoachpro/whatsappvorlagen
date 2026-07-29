@@ -1,5 +1,26 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-07-29
+
+### Täglicher Superchat-Sync mit Papierkorb — der Sync lief seit 8 Wochen gar nicht
+**Befund:** Der erwartete tägliche Abgleich existierte nie. `agents/sync-superchat-to-pb.js` war ein reines npm-Script ohne Scheduler — in `.github/workflows/` lagen nur Health- und Lizenz-Check. Letzter Lauf laut `journal/audit.log`: **2026-06-01 06:34 UTC**, danach 58 Tage nichts. In der Zwischenzeit sind in Superchat 19 Vorlagen entstanden, die auf der Plattform fehlten (269 PB-Records vs. 284 in Superchat). Zwei Folgefehler hätten den Job auch dann blockiert, wenn er gelaufen wäre: das Skript las Credentials ausschließlich per `fs.readFileSync` aus `.env` (in CI nicht vorhanden), und `SUPERCHAT_API_KEY` war nie als Repo-Secret hinterlegt.
+
+**Zweiter Befund — Löschen war nie implementiert:** `syncOne()` machte ausschließlich Upsert per `superchat_id`. Ein Abgleich der PB-Records gegen die Superchat-Liste fehlte vollständig, in Superchat gelöschte Vorlagen wären dauerhaft stehen geblieben.
+
+**Dritter Befund — irreführender Kontrakt:** Der Kopfkommentar versprach, `kategorie`/`ordner`/`buttons` würden „NIE überschrieben" — `buildScFields()` schrieb genau diese drei Felder. Bei manuellen Läufen fiel das kaum auf; ein täglicher Job hätte die gepflegte Kategorisierung jede Nacht überbügelt. Aufgelöst zugunsten von **Superchat = Master** (Entscheidung Thomas), Kommentar korrigiert. Reine Völker-Felder (`ueberschrift`, `urls`, `telefonnummer`, `schnellantwort`, `notizen`, `vorschaubild`) und alle Kunden-Overlays bleiben unangetastet.
+
+**Umgesetzt:**
+- **`.github/workflows/sync-superchat.yml`** — täglich 05:00 UTC + manuell auslösbar (`dry_run`, `force`). Skript liest jetzt `process.env` mit `.env`-Fallback, läuft also lokal wie in CI.
+- **Papierkorb statt Hard-Delete (ADR-05):** verschwundene Vorlagen bekommen `geloescht_am` gesetzt. Als Flag im Record, **nicht** als eigene Collection — `template_overlays` hängt per `cascadeDelete` an `templates`, ein Umzug hätte die Kunden-Personalisierungen mitgerissen. Taucht eine Vorlage in Superchat wieder auf, holt der nächste Lauf sie automatisch zurück (`restore`).
+- **Schutzschwelle gegen Teilantworten:** fehlen >10% der aktiven Records (und mind. 5 Stück), wird **nichts** in den Papierkorb verschoben — stattdessen Telegram-Warnung + Exit 1. Bewusstes Großaufräumen per `force`-Input. Eine Antwort mit 0 Vorlagen bricht immer ab. `--limit` überspringt den Papierkorb-Abgleich komplett (eine gekürzte Liste hätte sonst alles andere als gelöscht markiert).
+- **Sichtbarkeit serverseitig:** `listRule`/`viewRule` der `templates`-Collection filtern gelöschte für Kunden weg (`@request.auth.role = "admin" || geloescht_am = ""`), nicht nur im Frontend.
+- **„Gelöscht"-Tab in der WebUI** (nur `role=admin`): zeigt Papierkorb-Inhalt mit Löschdatum, einzeln oder alle auf einmal endgültig löschbar. `deleteRule` war bereits admin-only.
+- **Totmann-Schalter:** Der Sync schreibt bei jedem sauberen Lauf einen Heartbeat nach `sync_state`; `health-check.js` meldet per Telegram, wenn >48h kein Erfolg vorliegt (Cooldown 24h, damit nicht 48 Pings/Tag rausgehen). Genau die Lücke, durch die der Stillstand 8 Wochen unbemerkt blieb.
+- **Telegram nur bei Änderungen oder Fehlern** — ruhige Läufe bleiben still.
+- **Nebenbei behoben:** `syncOne()` machte pro Template eine eigene `findBySuperchatId`-Abfrage (284 Requests); PB-Records werden jetzt einmal geladen und über eine Map aufgelöst. Superchat-Calls haben Retry mit Backoff, weil eine Teilantwort hier wie eine Massenlöschung aussähe.
+
+**Dry-Run-Verifikation gegen Live:** 284 Superchat-Templates, 19 create, 265 update, 4 Papierkorb-Kandidaten (Tippfehler- und „Kopie"-Dubletten), 0 Fehler. Schwelle greift korrekt nicht (4 < 5).
+
 ## 2026-07-14
 
 ### Ursache der Health-Check-Fehlalarme gefunden (VOR-15)

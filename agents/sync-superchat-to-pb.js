@@ -1,25 +1,33 @@
 /**
  * agents/sync-superchat-to-pb.js — Mirror Superchat-Templates → PocketBase
  *
- * Phase 2 (VOE-238): Superchat ist Master, PocketBase ist die Mirror-/Auslieferungs-DB.
- * (Notion-Sync war übergangsweise parallel aktiv — Notion in Phase 6 / VOR-2 abgeschaltet 2026-06-21.)
+ * Superchat ist Master, PocketBase ist die Mirror-/Auslieferungs-DB.
+ * Läuft täglich 05:00 UTC per GitHub Actions (.github/workflows/sync-superchat.yml).
  *
- * - Legt die Collection `templates` idempotent an (falls nicht vorhanden).
- * - Upsert per `superchat_id`: schreibt NUR die Superchat-Felder.
- *   Die Völker-Anreicherungsfelder (kategorie, ordner, ueberschrift, buttons, urls,
- *   telefonnummer, schnellantwort, notizen, vorschaubild) werden NIE überschrieben.
- * - Vorschaubild (assets/previews/<id>.png) wird optional hochgeladen, aber nur wenn der
- *   Record noch keines hat (überschreibt keine Admin-Pflege).
+ * - Legt Collection `templates` + Feld `geloescht_am` + Collection `sync_state` idempotent an.
+ * - Upsert per `superchat_id`: alle Felder, die Superchat liefert, werden überschrieben
+ *   (Superchat gewinnt — Entscheidung 2026-07-29). Reine Völker-Felder, die Superchat NICHT
+ *   kennt (ueberschrift, urls, telefonnummer, schnellantwort, notizen, vorschaubild), bleiben
+ *   unangetastet, ebenso alle Kunden-Overlays in `template_overlays`.
+ * - Papierkorb statt Hard-Delete: Vorlagen, die in Superchat verschwunden sind, bekommen
+ *   `geloescht_am` gesetzt und verschwinden aus der Kundenansicht. Endgültig gelöscht wird
+ *   nur manuell im „Gelöscht"-Tab der WebUI (Admin).
+ * - Wiederauferstehung: taucht eine Vorlage in Superchat wieder auf, wird `geloescht_am` geleert.
+ * - Schutzschwelle: fehlen auf einmal mehr als 10% (und mind. 5 Stück), wird NICHTS in den
+ *   Papierkorb verschoben — stattdessen Telegram-Warnung und Exit 1. Schützt gegen Teilantworten
+ *   der Superchat-API. Bewusstes Großaufräumen: mit --force durchdrücken.
+ * - Telegram nur bei Änderungen oder Fehlern (ruhige Läufe bleiben still).
+ * - Heartbeat in `sync_state`; agents/health-check.js schlägt Alarm, wenn >48h kein Erfolg.
  *
- * .env benötigt zusätzlich:
- *   PB_URL=https://vorlagen.voelkergroup.cloud
- *   PB_ADMIN_EMAIL=thomas@voelker.digital
- *   PB_ADMIN_PASSWORD=...        (NICHT committen — nur lokal in .env)
+ * Env (process.env hat Vorrang, sonst .env):
+ *   SUPERCHAT_API_KEY, PB_URL, PB_ADMIN_EMAIL, PB_ADMIN_PASSWORD
+ *   optional TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
  *
  * Usage:
- *   node agents/sync-superchat-to-pb.js --limit 3 --no-image   # Test (3 Templates, ohne Bild)
+ *   node agents/sync-superchat-to-pb.js --limit 3 --no-image   # Test (Papierkorb wird übersprungen)
  *   node agents/sync-superchat-to-pb.js --dry-run              # nur Plan
- *   node agents/sync-superchat-to-pb.js                        # alle, inkl. Bild-Upload
+ *   node agents/sync-superchat-to-pb.js --force                # Schutzschwelle übergehen
+ *   node agents/sync-superchat-to-pb.js                        # voller Lauf
  */
 'use strict';
 
@@ -27,16 +35,23 @@ const fs   = require('fs');
 const path = require('path');
 
 // ─── ENV ─────────────────────────────────────────────────────────────────────
+// process.env hat Vorrang (GitHub Actions), .env ist der lokale Fallback.
 const ENV_PATH = path.join(__dirname, '..', '.env');
 function loadEnv() {
   const env = {};
-  for (const raw of fs.readFileSync(ENV_PATH, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('='); if (eq < 0) continue;
-    let val = line.slice(eq + 1).trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
-    env[line.slice(0, eq).trim()] = val;
+  try {
+    for (const raw of fs.readFileSync(ENV_PATH, 'utf8').split('\n')) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('='); if (eq < 0) continue;
+      let val = line.slice(eq + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
+      env[line.slice(0, eq).trim()] = val;
+    }
+  } catch (_) { /* in CI gibt es keine .env — dann kommt alles aus process.env */ }
+  for (const k of ['SUPERCHAT_API_KEY', 'SUPERCHAT_BASE_URL', 'PB_URL', 'PB_ADMIN_EMAIL',
+                   'PB_ADMIN_PASSWORD', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']) {
+    if (process.env[k]) env[k] = process.env[k];
   }
   return env;
 }
@@ -47,10 +62,12 @@ const SC_BASE  = env.SUPERCHAT_BASE_URL || 'https://api.superchat.com/v1.0';
 const PB_URL   = (env.PB_URL || 'https://vorlagen.voelkergroup.cloud').replace(/\/$/, '');
 const PB_EMAIL = env.PB_ADMIN_EMAIL;
 const PB_PASS  = env.PB_ADMIN_PASSWORD;
+const TG_TOKEN = env.TELEGRAM_BOT_TOKEN;
+const TG_CHAT  = env.TELEGRAM_CHAT_ID;
 
-if (!SC_KEY  || SC_KEY.includes('your_'))  { console.error('SUPERCHAT_API_KEY fehlt in .env'); process.exit(2); }
-if (!PB_EMAIL) { console.error('PB_ADMIN_EMAIL fehlt in .env'); process.exit(2); }
-if (!PB_PASS)  { console.error('PB_ADMIN_PASSWORD fehlt in .env'); process.exit(2); }
+if (!SC_KEY  || SC_KEY.includes('your_'))  { console.error('SUPERCHAT_API_KEY fehlt (Env oder .env)'); process.exit(2); }
+if (!PB_EMAIL) { console.error('PB_ADMIN_EMAIL fehlt'); process.exit(2); }
+if (!PB_PASS)  { console.error('PB_ADMIN_PASSWORD fehlt'); process.exit(2); }
 
 // ─── Args ────────────────────────────────────────────────────────────────────
 const args     = process.argv.slice(2);
@@ -59,30 +76,69 @@ const LIMIT    = argv('--limit') ? parseInt(argv('--limit'), 10) : null;
 const DRY_RUN  = args.includes('--dry-run');
 const NO_IMAGE = args.includes('--no-image');
 const VERBOSE  = args.includes('--verbose');
+const FORCE    = args.includes('--force');
+
+// Schutzschwelle gegen Teilantworten der Superchat-API (siehe Kopf).
+const MISSING_PCT_LIMIT = 0.10; // >10% der aktiven Records
+const MISSING_MIN_ABS   = 5;    // ... aber erst ab 5 Stück, sonst blockiert jede Einzellöschung
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ─── Audit-Log ───────────────────────────────────────────────────────────────
 const AUDIT_PATH = path.join(__dirname, '..', 'journal', 'audit.log');
 function audit(action, details) {
-  fs.appendFileSync(AUDIT_PATH, JSON.stringify({ ts: new Date().toISOString(), sink: 'pb', action, ...details }) + '\n');
+  try {
+    fs.appendFileSync(AUDIT_PATH, JSON.stringify({ ts: new Date().toISOString(), sink: 'pb', action, ...details }) + '\n');
+  } catch (_) { /* im Runner ist das Log flüchtig — kein Grund, den Sync zu stoppen */ }
+}
+
+// ─── Telegram ────────────────────────────────────────────────────────────────
+async function telegram(text) {
+  if (!TG_TOKEN || !TG_CHAT) { console.log('[Telegram] Token/Chat fehlt — nur Log:\n' + text); return; }
+  if (DRY_RUN) { console.log('[DRY-RUN] Telegram:\n' + text); return; }
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_CHAT, text, disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.ok) { console.log('[Telegram] gesendet ✓'); return; }
+    console.error(`[Telegram] FEHLER ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`);
+  } catch (e) { console.error(`[Telegram] Versand fehlgeschlagen: ${e.message}`); }
 }
 
 // ─── Superchat ───────────────────────────────────────────────────────────────
+// Retry, weil eine Teilantwort hier wie eine Massenlöschung aussähe.
 async function scApi(p) {
-  const res = await fetch(`${SC_BASE}${p}`, {
-    headers: { 'X-API-Key': SC_KEY, 'Accept': 'application/json' },
-    signal:  AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) throw new Error(`Superchat ${res.status} ${p}: ${(await res.text()).slice(0, 200)}`);
-  return res.json();
+  let lastErr;
+  for (let i = 1; i <= 3; i++) {
+    try {
+      const res = await fetch(`${SC_BASE}${p}`, {
+        headers: { 'X-API-Key': SC_KEY, 'Accept': 'application/json' },
+        signal:  AbortSignal.timeout(20_000),
+      });
+      if (res.ok) return res.json();
+      const body = (await res.text()).slice(0, 200);
+      lastErr = new Error(`Superchat ${res.status} ${p}: ${body}`);
+      if (res.status < 500 && res.status !== 429) throw lastErr; // 4xx ist echt, nicht transient
+    } catch (e) {
+      lastErr = e;
+      if (/Superchat 4/.test(e.message)) throw e;
+    }
+    if (i < 3) await sleep(2000 * i);
+  }
+  throw lastErr;
 }
 
 async function fetchAllTemplates() {
-  const all = []; let cursor = null;
+  const all = []; let cursor = null; let pages = 0;
   while (true) {
     const j = await scApi(cursor ? `/templates?after=${cursor}` : '/templates');
     all.push(...(j.results || []));
     cursor = j.pagination?.next_cursor;
+    pages++;
     if (!cursor) break;
+    if (pages > 200) throw new Error('Pagination bricht nicht ab (>200 Seiten) — abgebrochen');
   }
   return all;
 }
@@ -125,7 +181,9 @@ const TEMPLATES_FIELDS = [
   { name: 'footer',            type: 'text'   },
   { name: 'variables',         type: 'json',   maxSize: 2000000 },
   { name: 'superchat_updated', type: 'text'   },
-  // ── Völker-Anreicherung (admin-editierbar, Sync fasst NIE an) ──
+  // ── Papierkorb (VOR-Sync 2026-07-29): leer = aktiv, ISO-Zeitstempel = gelöscht in Superchat ──
+  { name: 'geloescht_am',      type: 'text'   },
+  // ── Völker-Anreicherung (admin-editierbar, Superchat kennt diese Felder nicht) ──
   { name: 'kategorie',         type: 'select', maxSelect: 1, values: ['Verwaltung', 'Marketing'] },
   { name: 'ordner',            type: 'text'   },
   { name: 'ueberschrift',      type: 'text'   },
@@ -138,27 +196,89 @@ const TEMPLATES_FIELDS = [
 ];
 
 async function ensureCollection() {
+  let col;
   try {
-    await pb('GET', '/api/collections/templates');
-    return false; // existiert schon
+    col = await pb('GET', '/api/collections/templates');
+  } catch (err) {
+    if (!String(err.message).includes('PB 404')) throw err;
+    await pb('POST', '/api/collections', {
+      name:    'templates',
+      type:    'base',
+      fields:  TEMPLATES_FIELDS,
+      indexes: ['CREATE UNIQUE INDEX `idx_templates_superchat_id` ON `templates` (`superchat_id`)'],
+      listRule: null, viewRule: null, createRule: null, updateRule: null, deleteRule: null,
+    });
+    return 'neu angelegt';
+  }
+
+  // Feld `geloescht_am` idempotent nachziehen (bestehende Installation).
+  const have = new Set(col.fields.map(f => f.name));
+  if (!have.has('geloescht_am')) {
+    if (DRY_RUN) return 'vorhanden (geloescht_am fehlt — DRY-RUN)';
+    await pb('PATCH', `/api/collections/${col.id}`, {
+      fields: [...col.fields, { name: 'geloescht_am', type: 'text' }],
+    });
+    return 'vorhanden, Feld geloescht_am ergänzt';
+  }
+  return 'vorhanden';
+}
+
+// Gelöschte Vorlagen sind für Kunden unsichtbar — serverseitig, nicht nur im Frontend.
+const TEMPLATES_LIST_RULE = '@request.auth.id != "" && (@request.auth.role = "admin" || geloescht_am = "")';
+
+async function ensureListRule() {
+  const col = await pb('GET', '/api/collections/templates');
+  if (col.listRule === TEMPLATES_LIST_RULE && col.viewRule === TEMPLATES_LIST_RULE) return false;
+  if (DRY_RUN) return 'DRY-RUN';
+  await pb('PATCH', `/api/collections/${col.id}`, {
+    listRule: TEMPLATES_LIST_RULE,
+    viewRule: TEMPLATES_LIST_RULE,
+  });
+  return true;
+}
+
+// Heartbeat-Collection: ein Record pro Job, damit health-check.js einen Stillstand erkennt.
+async function ensureSyncState() {
+  try {
+    await pb('GET', '/api/collections/sync_state');
+    return false;
   } catch (err) {
     if (!String(err.message).includes('PB 404')) throw err;
   }
+  if (DRY_RUN) return 'DRY-RUN';
   await pb('POST', '/api/collections', {
-    name:    'templates',
-    type:    'base',
-    fields:  TEMPLATES_FIELDS,
-    indexes: ['CREATE UNIQUE INDEX `idx_templates_superchat_id` ON `templates` (`superchat_id`)'],
-    // Phase 4 verschärft die Rules; vorerst nur Superuser (null = admin-only)
+    name: 'sync_state', type: 'base',
+    fields: [
+      { name: 'key',          type: 'text', required: true },
+      { name: 'last_success', type: 'text' },
+      { name: 'last_alert',   type: 'text' },
+      { name: 'stats',        type: 'json', maxSize: 200000 },
+    ],
+    indexes: ['CREATE UNIQUE INDEX `idx_sync_state_key` ON `sync_state` (`key`)'],
+    // Superuser-only — weder Kunden noch Admin-User der WebUI haben hier etwas zu suchen.
     listRule: null, viewRule: null, createRule: null, updateRule: null, deleteRule: null,
   });
-  return true; // neu angelegt
+  return true;
 }
 
-async function findBySuperchatId(scId) {
-  const q = encodeURIComponent(`superchat_id="${scId}"`);
-  const j = await pb('GET', `/api/collections/templates/records?filter=${q}&perPage=1`);
-  return j.items && j.items[0] ? j.items[0] : null;
+async function writeHeartbeat(stats) {
+  const now = new Date().toISOString();
+  const j = await pb('GET', `/api/collections/sync_state/records?filter=${encodeURIComponent('key="superchat_sync"')}&perPage=1`);
+  const rec = j.items && j.items[0];
+  const body = { key: 'superchat_sync', last_success: now, stats };
+  if (rec) await pb('PATCH', `/api/collections/sync_state/records/${rec.id}`, body);
+  else     await pb('POST',  '/api/collections/sync_state/records', body);
+}
+
+async function fetchAllPbTemplates() {
+  const all = []; let page = 1;
+  while (true) {
+    const j = await pb('GET', `/api/collections/templates/records?perPage=500&page=${page}&fields=id,superchat_id,name,geloescht_am`);
+    all.push(...(j.items || []));
+    if (page >= (j.totalPages || 1)) break;
+    page++;
+  }
+  return all;
 }
 
 // ─── Mapping: Superchat-Felder (Superchat = Master) ──────────────────────────
@@ -194,18 +314,22 @@ async function attachPreview(recordId, filePath) {
   await pb('PATCH', `/api/collections/templates/records/${recordId}`, form);
 }
 
-async function syncOne(t) {
+async function syncOne(t, byScId) {
   const previewPath = path.join(__dirname, '..', 'assets', 'previews', `${t.id}.png`);
   const hasPreview  = !NO_IMAGE && fs.existsSync(previewPath);
-  const existing    = await findBySuperchatId(t.id);
+  const existing    = byScId.get(t.id) || null;
 
-  if (DRY_RUN) return { mode: existing ? 'update' : 'create', preview: hasPreview };
+  if (DRY_RUN) return { mode: existing ? 'update' : 'create', preview: hasPreview, restored: !!(existing && existing.geloescht_am) };
 
   const fields = buildScFields(t);
+  // Wieder in Superchat aufgetaucht → aus dem Papierkorb zurückholen.
+  const restored = !!(existing && existing.geloescht_am);
+  if (restored) fields.geloescht_am = '';
+
   let record;
   if (existing) {
     record = await pb('PATCH', `/api/collections/templates/records/${existing.id}`, fields);
-    audit('update', { template_id: t.id, record_id: existing.id });
+    audit(restored ? 'restore' : 'update', { template_id: t.id, record_id: existing.id });
   } else {
     record = await pb('POST', '/api/collections/templates/records', fields);
     audit('create', { template_id: t.id, record_id: record.id });
@@ -217,29 +341,46 @@ async function syncOne(t) {
     try { await attachPreview(record.id, previewPath); attached = true; }
     catch (err) { audit('preview-upload-fail', { template_id: t.id, error: err.message }); }
   }
-  return { mode: existing ? 'update' : 'create', preview: attached };
+  return { mode: existing ? 'update' : 'create', preview: attached, restored };
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 (async () => {
   console.log(`\n[PB-Sync] Auth gegen ${PB_URL} ...`);
   await pbAuth();
-  const created = await ensureCollection();
-  console.log(`[PB-Sync] Collection 'templates' ${created ? 'NEU angelegt' : 'vorhanden'}`);
+  console.log(`[PB-Sync] Collection 'templates': ${await ensureCollection()}`);
+  const ruleChanged = await ensureListRule();
+  if (ruleChanged) console.log('[PB-Sync] Sichtbarkeitsregel gesetzt (Kunden sehen keine gelöschten Vorlagen)');
+  const stateNew = await ensureSyncState();
+  if (stateNew) console.log('[PB-Sync] Collection \'sync_state\' angelegt (Heartbeat)');
 
   console.log('[PB-Sync] Hole Superchat-Templates ...');
-  let work = await fetchAllTemplates();
-  console.log(`[PB-Sync] Superchat: ${work.length} Templates`);
+  const scAll = await fetchAllTemplates();
+  console.log(`[PB-Sync] Superchat: ${scAll.length} Templates`);
+  if (!scAll.length) {
+    // Leere Antwort ist niemals plausibel — das wäre "alles gelöscht".
+    await telegram('⚠️ Vorlagen-Sync abgebrochen: Superchat lieferte 0 Vorlagen zurück.\nEs wurde nichts geändert. Bitte API-Key und Superchat-Account prüfen.');
+    console.error('[PB-Sync] Superchat lieferte 0 Templates — Abbruch ohne Änderung.');
+    process.exit(1);
+  }
+
+  const pbAll  = await fetchAllPbTemplates();
+  const byScId = new Map(pbAll.map(r => [r.superchat_id, r]));
+  console.log(`[PB-Sync] PocketBase: ${pbAll.length} Records (${pbAll.filter(r => r.geloescht_am).length} im Papierkorb)`);
+
+  let work = scAll;
   if (LIMIT) work = work.slice(0, LIMIT);
   console.log(`[PB-Sync] Verarbeite ${work.length}${DRY_RUN ? ' (DRY-RUN)' : ''}${NO_IMAGE ? ' [no-image]' : ''}\n`);
 
-  let nCreate = 0, nUpdate = 0, nErr = 0, nImg = 0;
+  let nCreate = 0, nUpdate = 0, nRestore = 0, nErr = 0, nImg = 0;
+  const neuNamen = [];
   const t0 = Date.now();
   for (let i = 0; i < work.length; i++) {
     const t = work[i];
     try {
-      const r = await syncOne(t);
-      if (r.mode === 'create') nCreate++; else nUpdate++;
+      const r = await syncOne(t, byScId);
+      if (r.mode === 'create') { nCreate++; neuNamen.push(t.name || t.id); } else nUpdate++;
+      if (r.restored) nRestore++;
       if (r.preview) nImg++;
       if (VERBOSE || i % 25 === 0 || i === work.length - 1) {
         console.log(`  [${String(i + 1).padStart(3)}/${work.length}] ${r.mode.padEnd(6)} ${r.preview ? '🖼' : '  '} ${t.id.padEnd(28)} ${(t.name || '').slice(0, 48)}`);
@@ -250,5 +391,82 @@ async function syncOne(t) {
       audit('error', { template_id: t.id, error: err.message });
     }
   }
-  console.log(`\n[PB-Sync] Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — created=${nCreate} updated=${nUpdate} previews=${nImg} errors=${nErr}\n`);
-})().catch(err => { console.error('[PB-Sync] Fatal:', err.message || err); process.exit(1); });
+
+  // ── Papierkorb: was in Superchat verschwunden ist ──────────────────────────
+  // Bei --limit ist die Superchat-Liste absichtlich unvollständig → niemals löschen.
+  let nTrash = 0, blocked = null;
+  if (LIMIT) {
+    console.log('\n[PB-Sync] --limit gesetzt → Papierkorb-Abgleich übersprungen.');
+  } else {
+    const scIds   = new Set(scAll.map(t => t.id));
+    const aktiv   = pbAll.filter(r => !r.geloescht_am);
+    const missing = aktiv.filter(r => !scIds.has(r.superchat_id));
+    const grenze  = Math.floor(aktiv.length * MISSING_PCT_LIMIT);
+
+    if (missing.length && missing.length >= MISSING_MIN_ABS && missing.length > grenze && !FORCE) {
+      blocked = { missing: missing.length, aktiv: aktiv.length, grenze };
+      console.error(`\n[PB-Sync] STOPP: ${missing.length} von ${aktiv.length} Vorlagen fehlen (Grenze ${grenze}). Nichts in den Papierkorb verschoben.`);
+      audit('trash-blocked', blocked);
+    } else if (missing.length) {
+      console.log(`\n[PB-Sync] Papierkorb: ${missing.length} Vorlage(n) nicht mehr in Superchat${FORCE ? ' [--force]' : ''}`);
+      const now = new Date().toISOString();
+      for (const r of missing) {
+        if (DRY_RUN) { nTrash++; console.log(`  → würde in Papierkorb: ${r.name}`); continue; }
+        try {
+          await pb('PATCH', `/api/collections/templates/records/${r.id}`, { geloescht_am: now });
+          nTrash++;
+          console.log(`  🗑 ${r.name}`);
+          audit('trash', { template_id: r.superchat_id, record_id: r.id });
+        } catch (err) {
+          nErr++;
+          console.error(`  ✗ Papierkorb ${r.superchat_id}: ${err.message.slice(0, 200)}`);
+          audit('error', { template_id: r.superchat_id, error: err.message });
+        }
+      }
+    } else {
+      console.log('\n[PB-Sync] Papierkorb: nichts zu verschieben.');
+    }
+  }
+
+  const dauer = ((Date.now() - t0) / 1000).toFixed(1);
+  console.log(`\n[PB-Sync] Done in ${dauer}s — created=${nCreate} updated=${nUpdate} restored=${nRestore} trashed=${nTrash} previews=${nImg} errors=${nErr}\n`);
+
+  // ── Heartbeat nur bei sauberem Lauf ────────────────────────────────────────
+  if (!DRY_RUN && !LIMIT && !blocked && !nErr) {
+    try {
+      await writeHeartbeat({ created: nCreate, updated: nUpdate, restored: nRestore, trashed: nTrash, superchat: scAll.length });
+      console.log('[PB-Sync] Heartbeat geschrieben ✓');
+    } catch (err) { console.error(`[PB-Sync] Heartbeat fehlgeschlagen: ${err.message}`); }
+  }
+
+  // ── Telegram: nur bei Änderungen oder Fehlern ──────────────────────────────
+  if (blocked) {
+    await telegram(
+      `⚠️ Vorlagen-Sync gestoppt — Sicherheitsschwelle\n\n`
+      + `${blocked.missing} von ${blocked.aktiv} Vorlagen fehlen plötzlich in der Superchat-Antwort (Grenze: ${blocked.grenze}).\n\n`
+      + `Es wurde NICHTS in den Papierkorb verschoben. Neue und geänderte Vorlagen sind übernommen.\n\n`
+      + `War das ein echtes Aufräumen? Dann GitHub → Actions → „Vorlagen-Sync" → Run workflow → force = true.`
+    );
+    process.exit(1);
+  }
+
+  const geaendert = nCreate + nRestore + nTrash;
+  if (geaendert || nErr) {
+    const zeilen = [`🔄 Vorlagen-Sync (${scAll.length} in Superchat)`, ''];
+    if (nCreate)  zeilen.push(`➕ ${nCreate} neu: ${neuNamen.slice(0, 5).join(', ')}${neuNamen.length > 5 ? ` … +${neuNamen.length - 5}` : ''}`);
+    if (nRestore) zeilen.push(`♻️ ${nRestore} aus dem Papierkorb zurück`);
+    if (nTrash)   zeilen.push(`🗑 ${nTrash} in den Papierkorb`);
+    if (nUpdate)  zeilen.push(`✏️ ${nUpdate} aktualisiert`);
+    if (nErr)     zeilen.push(`❌ ${nErr} Fehler — siehe GitHub Actions`);
+    zeilen.push('', `→ ${PB_URL}/`);
+    await telegram(zeilen.join('\n'));
+  } else {
+    console.log('[PB-Sync] Keine Änderungen — kein Telegram.');
+  }
+
+  if (nErr) process.exit(1);
+})().catch(async err => {
+  console.error('[PB-Sync] Fatal:', err.message || err);
+  await telegram(`❌ Vorlagen-Sync fehlgeschlagen\n\n${String(err.message || err).slice(0, 400)}\n\n→ GitHub Actions prüfen`);
+  process.exit(1);
+});

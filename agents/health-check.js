@@ -111,9 +111,59 @@ async function runChecks() {
   return { fails, diag };
 }
 
+// ─── Totmann-Schalter für den täglichen Vorlagen-Sync ────────────────────────
+// Der Sync (05:00 UTC, .github/workflows/sync-superchat.yml) schreibt bei jedem sauberen
+// Lauf einen Heartbeat nach `sync_state`. Bleibt der aus, merkt es sonst niemand — genau
+// so lag der Sync 8 Wochen unbemerkt tot (2026-06-01 bis 2026-07-29).
+// Läuft getrennt von der Störungs-Gegenprobe: ein 48h-Stillstand ist kein Netz-Blip.
+const SYNC_MAX_AGE_H  = 48;
+const SYNC_COOLDOWN_H = 24;   // höchstens eine Erinnerung pro Tag, sonst 48 Pings/Tag
+
+async function checkSyncHeartbeat() {
+  if (!env.PB_ADMIN_EMAIL || !env.PB_ADMIN_PASSWORD) return;
+
+  const auth = await fetchT(`${PB_URL}/api/collections/_superusers/auth-with-password`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identity: env.PB_ADMIN_EMAIL, password: env.PB_ADMIN_PASSWORD }),
+  });
+  if (auth.status !== 200) return;              // Login-Problem meldet runChecks() bereits
+  const token = JSON.parse(auth.body).token;
+
+  const q = encodeURIComponent('key="superchat_sync"');
+  const r = await fetchT(`${PB_URL}/api/collections/sync_state/records?filter=${q}&perPage=1`,
+    { headers: { Authorization: token } });
+  if (r.status !== 200) return;                 // Collection fehlt = Sync lief noch nie
+  const rec = JSON.parse(r.body).items?.[0];
+  if (!rec || !rec.last_success) return;        // noch kein erfolgreicher Lauf — nichts zu melden
+
+  const alterH = (Date.now() - Date.parse(rec.last_success)) / 3600000;
+  console.log(`[Health] Sync-Heartbeat: letzter Erfolg vor ${alterH.toFixed(1)}h`);
+  if (alterH <= SYNC_MAX_AGE_H) return;
+
+  const seitAlarmH = rec.last_alert ? (Date.now() - Date.parse(rec.last_alert)) / 3600000 : Infinity;
+  if (seitAlarmH < SYNC_COOLDOWN_H) { console.log('[Health] Sync-Alarm unterdrückt (Cooldown läuft)'); return; }
+
+  const msg = '🕓 Vorlagen-Sync steht still\n\n'
+    + `Letzter erfolgreicher Lauf vor ${Math.floor(alterH)} Stunden (${rec.last_success.slice(0, 16).replace('T', ' ')} UTC).\n`
+    + 'Erwartet: täglich 05:00 UTC.\n\n'
+    + '→ GitHub → Actions → „Vorlagen-Sync" prüfen (Workflow deaktiviert? Secret abgelaufen?)';
+  console.error(`  ! Sync steht seit ${Math.floor(alterH)}h`);
+  if (DRY) { console.log('[DRY-RUN] Telegram:\n' + msg); return; }
+  await telegram(msg);
+  await fetchT(`${PB_URL}/api/collections/sync_state/records/${rec.id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: token },
+    body: JSON.stringify({ last_alert: new Date().toISOString() }),
+  });
+}
+
 (async () => {
   let { fails, diag } = await runChecks();
   console.log(`[Health] ${diag.join(' ')} | Störungen: ${fails.length}`);
+
+  // Unabhängig von den Erreichbarkeits-Checks — auch eine kerngesunde Plattform
+  // kann einen toten Sync haben. Fehler hier dürfen den Health-Check nie kippen.
+  await checkSyncHeartbeat().catch(e => console.error(`[Health] Heartbeat-Check fehlgeschlagen: ${e.message}`));
+
   if (!fails.length) { console.log('[Health] alles ok ✓'); return; }
 
   // Gegenprobe: GitHub-Runner kommen sporadisch nicht an den VPS ran (VOR-15).
