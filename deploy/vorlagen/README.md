@@ -1,7 +1,13 @@
 # Deployment — Vorlagen-Plattform (PocketBase)
 
-**Server:** srv1537054 / `187.124.165.1` (Ubuntu 24.04) · **URL:** https://vorlagen.voelkergroup.cloud
-**Admin-Panel:** `/_/` · **Kunden-UI:** `/` (aus `pb_public/`)
+**Server:** `srv1186348.hstgr.cloud` / `72.62.63.41` (Hostinger-VPS-ID 1186348, KVM 2, Ubuntu 24.04)
+**URL:** https://vorlagen.voelkergroup.cloud · **Admin-Panel:** `/_/` · **Kunden-UI:** `/` (aus `pb_public/`)
+
+> ⚠️ **Bis 2026-08-04 stand hier srv1537054 / `187.124.165.1` — das war falsch.** Die Anwendung
+> lief nie dort; der Auto-Deploy kopierte auf den falschen Server, `webui/` hing seit dem 03.07.
+> fest, `pb_hooks/` seit dem 22.06. (Ursache des `attribute_identifier`-Kundenfehlers).
+> **Vor jeder Serverarbeit `hostname` prüfen — muss `srv1186348` zeigen.**
+> Auf srv1537054 liegt noch eine stillgelegte Kopie (`/root/vorlagen-src`, `/opt/vorlagen-pb`).
 
 ## Struktur auf dem Server
 ```
@@ -20,12 +26,26 @@ docker compose restart      # neu starten
 docker compose logs -f      # Logs
 ```
 
-## Kunden-UI deployen (Inhalt von webui/)
+## Deployen = `git push origin main` (Auto-Deploy, ≤ 2 min)
+
+Auf srv1186348 liegt der Klon `/root/vorlagen-src`; `/root/vorlagen-deploy.sh` läuft per Cron
+(`*/2 * * * *`) und liefert **beides** aus:
+
+| Quelle | Ziel | Nachlauf |
+|--------|------|----------|
+| `webui/{index.html,app.js,styles.css}` | `/opt/vorlagen-pb/pb_public/` | — |
+| `pb_hooks/*.pb.js` | `/opt/vorlagen-pb/pb_hooks/` | nur bei Änderung (`cmp`) → `docker restart vorlagen-pb` |
+
+Manueller Anstoß, falls es eilt: `/root/vorlagen-deploy.sh`
+
+**Kontrolle von außen** (ohne Serverzugang) — deckt einen hängenden Deploy sofort auf:
 ```bash
-scp webui/*.html webui/*.js webui/*.css root@187.124.165.1:/opt/vorlagen-pb/pb_public/
+curl -sI https://vorlagen.voelkergroup.cloud/app.js | grep last-modified   # vs. letzter Commit
+dig +short vorlagen.voelkergroup.cloud                                     # muss 72.62.63.41 sein
 ```
-> Hinweis: SSH-Verbindungen drosseln — der Hostinger-Netzwerkschutz sperrt die Quell-IP
-> bei zu vielen SSH-Verbindungen in kurzer Zeit (Port 443 bleibt erreichbar).
+
+> Zugang zum Server: **hPanel → VPS → srv1186348.hstgr.cloud → Browser-Terminal** (als root).
+> Direktes `ssh`/`scp` von außen ist netzseitig geDROPt (Hostinger-Schutz, siehe VOR-15).
 
 ## E-Mail / Passwort-Reset (VOR-11) — automatisiert via `setup-mail.js`
 „Passwort vergessen" + Willkommens-Mail nutzen den eingebauten PB-Mailversand. Die Konfiguration
@@ -50,26 +70,22 @@ Der Agent braucht gültige `PB_ADMIN_EMAIL`/`PB_ADMIN_PASSWORD` (Superuser) in `
 > Ohne SMTP funktioniert die App weiter: Kunde-Anlegen zeigt dann das **Backup-Passwort** zur
 > manuellen Weitergabe (Fallback). Reset-Mails werden erst nach `setup:mail` zugestellt.
 
-## Server-Hooks deployen (`pb_hooks/`) — einmalig im Terminal
-Der Auto-Deploy liefert nur `webui/` → `pb_public/` aus, **nicht** `pb_hooks/`. Die Hooks
-(`personalize_mail` = Vorname-Anrede VOR-12; `telegram_notify` = Registrierung/Verlängerung VOR-14;
-`superchat_creds`/`superchat_push` = SuperChat-Push VOR-9) müssen in `/opt/vorlagen-pb/pb_hooks/`
-kopiert werden — **bei jeder Hook-Änderung erneut** (eine Zeile, siehe unten). **Hostinger hPanel → VPS → Browser-Terminal**
-(als root), diesen Block einfügen:
+## Server-Hooks (`pb_hooks/`) — seit 2026-08-04 automatisch
+Die Hooks (`personalize_mail` = Vorname-Anrede VOR-12; `telegram_notify` = Registrierung/Verlängerung
+VOR-14; `superchat_creds`/`superchat_push` = SuperChat-Push VOR-9) gehen mit dem Auto-Deploy raus:
+`vorlagen-deploy.sh` vergleicht sie per `cmp` und startet bei Änderung `vorlagen-pb` neu.
+**Kein manuelles Kopieren mehr.**
 
+Manuell nachziehen (Notfall, im Browser-Terminal auf **srv1186348**):
 ```bash
-REPO=$(dirname "$(find / -type d -name pb_hooks 2>/dev/null | grep -v '/opt/vorlagen-pb' | head -1)")
-echo ">> Repo: $REPO" && cd "$REPO" && git pull --ff-only
-mkdir -p /opt/vorlagen-pb/pb_hooks
-cp "$REPO"/pb_hooks/*.pb.js /opt/vorlagen-pb/pb_hooks/ && echo ">> kopiert:" && ls /opt/vorlagen-pb/pb_hooks/
-cd /root/vorlagen && docker compose restart && echo ">> FERTIG"
+cd /root/vorlagen-src && git pull --ff-only
+cp pb_hooks/*.pb.js /opt/vorlagen-pb/pb_hooks/ && docker restart vorlagen-pb
 ```
-Findet der Block kein Repo (`Repo:` leer), stattdessen `find / -type d -name pb_hooks 2>/dev/null`
-laufen lassen und die Ausgabe weitergeben.
 
-> **Dauer-Lösung (optional):** Im Auto-Deploy-Cron zusätzlich `cp $REPO/pb_hooks/*.pb.js
-> /opt/vorlagen-pb/pb_hooks/ && docker compose -f /root/vorlagen/docker-compose.yml restart`
-> ergänzen — dann deployen Hooks künftig automatisch.
+> Warum das hier so ausführlich steht: Bis 2026-08-04 stand die Hook-Kopie nur als „optional" in
+> dieser Datei und lief nie — der Server hatte monatelang einen alten Hook-Stand. Ein Kundenfehler
+> (`SuperChat 400: attribute_identifier`) sah dadurch wie ein API-Problem aus, obwohl der Repo-Code
+> längst korrekt war.
 
 ### Nur für VOR-9 (SuperChat-Push) zusätzlich: `SUPERCHAT_ENC_KEY`
 `personalize_mail` (Vorname) braucht das **nicht**. Für SuperChat-Push: 32-Zeichen-Schlüssel in

@@ -36,6 +36,8 @@ Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, S
 - **ADR-01 Tenancy-Modell A** (Master ⊕ Overlay) — siehe specs/VPS_PLATTFORM_KONZEPT.md §2.
 - **ADR-02 Stack: PocketBase + Docker + Traefik** auf bestehendem VPS-Hausmuster — §5 des Konzepts.
 - **ADR-03 Auto-Deploy via Git-Pull-Cron** (read-only Deploy-Key), da SSH-Push netzseitig gedrosselt — deploy/vorlagen/README.md.
+  Seit 2026-08-04 auf **srv1186348** (vorher fälschlich auf srv1537054 eingerichtet, wo die Anwendung nie lief)
+  und inklusive `pb_hooks/` — die Trennung „nur webui automatisch, Hooks von Hand" hat sich als Fehlerquelle erwiesen.
 - **ADR-04 Kunden-UI als Vanilla-SPA in `pb_public/`** (kein Framework/CDN, DSGVO-freundlich).
 - **ADR-05 Sync-Löschungen als Papierkorb, nicht als Hard-Delete** (2026-07-29). Superchat ist Master
   und gewinnt bei allen Feldern, die es liefert. Verschwundene Vorlagen bekommen `geloescht_am` gesetzt

@@ -11,7 +11,7 @@ Backlog-Adapter, Governance-Modus und aktive Gates.
 | **Governance-Modus** | `lite` — kleines internes Tool (2 Personen). Kernkontext + Spec-Gate + Basis-Linting; keine schweren CI-/Coverage-/Performance-Gates |
 | **Execution-Isolation** | `none` — lineare Arbeit, keine parallelen Agenten |
 | **Doku-SSoT** | Repo (`/`-Root-MDs + `specs/` + `docs/`) + Obsidian-Vault-Spiegel (DocSync, siehe lib/doc-sync.js) |
-| **Deployment** | Hostinger-VPS (srv1537054), PocketBase, Auto-Deploy via `git push origin main` → Server-Cron-Pull (`deploy/vorlagen/README.md`) |
+| **Deployment** | Hostinger-VPS **srv1186348 / 72.62.63.41** (NICHT srv1537054 — dort liegt nur eine stillgelegte Kopie), PocketBase, Auto-Deploy via `git push origin main` → Server-Cron-Pull inkl. `pb_hooks/` (`deploy/vorlagen/README.md`) |
 
 ## Aktive Gates (lite)
 

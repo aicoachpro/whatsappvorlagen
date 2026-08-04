@@ -1,5 +1,33 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-08-04
+
+### Der Auto-Deploy lief seit jeher auf dem falschen Server
+
+**Symptom:** Die am 29.07. fertiggestellte Mehrbenutzer-Verwaltung war am Folgetag live nicht zu sehen. Auch nach manuellem Kopieren im Browser-Terminal nicht.
+
+**Befund:** `vorlagen.voelkergroup.cloud` löst auf **72.62.63.41 = srv1186348** auf. Die gesamte Doku (`deploy/vorlagen/README.md`, `CONVENTIONS.md`, `specs/VPS_PLATTFORM_KONZEPT.md`, `docker-compose.yml`) nannte **srv1537054 / 187.124.165.1**. Dort liegt eine vollständige Kopie — Repo-Klon `/root/vorlagen-src`, Deploy-Key, `/opt/vorlagen-pb/pb_public/` und der Cron `*/2 * * * *`. Der pullte zuverlässig und kopierte ins Leere. Auf dem echten Server gab es weder Klon noch Cron: dort wurde **nie** automatisch deployt.
+
+| Betroffen | Eingefroren seit | Wirkung |
+| --- | --- | --- |
+| `webui/` | 03.07.2026 | Mehrbenutzer-Verwaltung und Papierkorb kamen nie beim Kunden an |
+| `pb_hooks/` | 22.06.2026 | `attribute_identifier`-Fix fehlte → Push-Fehler bei Herger Verwaltungs GmbH |
+
+Damit ist der Kundenfehler vom 29.07. abschließend erklärt — die Diagnose „Server läuft veralteten Hook-Code" stimmte, nur war der untersuchte Server der falsche.
+
+**Behoben:** Auto-Deploy auf srv1186348 eingerichtet (Klon `/root/vorlagen-src` über HTTPS, `/root/vorlagen-deploy.sh`, Cron `*/2 * * * *`). Das Skript liefert jetzt **auch `pb_hooks/`** aus — bei Änderung per `cmp` erkannt, gefolgt von `docker restart vorlagen-pb`. Die bisherige „optionale" Hook-Kopie von Hand entfällt.
+
+**Live verifiziert:** `app.js` = 64.646 Bytes (= Repo-Stand), `addUserToTenant`/`cust-group`/`emptyTrash` vorhanden, `/api/health` = 200.
+
+**Lehre für die Diagnose** — zwei Sekunden-Checks von außen hätten das sofort aufgedeckt und stehen jetzt in `deploy/vorlagen/README.md`:
+
+```bash
+curl -sI https://vorlagen.voelkergroup.cloud/app.js | grep last-modified   # Datum vs. letzter Commit
+dig +short vorlagen.voelkergroup.cloud                                     # IP vs. Doku
+```
+
+Widerspricht ein Fehlerbild dem Repo-Code, ist zuerst zu prüfen, ob der Server den Code überhaupt hat — und ob es der richtige Server ist.
+
 ## 2026-07-29 (2)
 
 ### Push-Fehler beim Kunden: Server läuft veralteten Hook-Code

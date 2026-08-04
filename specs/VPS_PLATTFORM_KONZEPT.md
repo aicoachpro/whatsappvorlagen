@@ -116,7 +116,11 @@ automatisch, Kundenänderungen kollidieren nie mit dem Master.
 - **Eigene PB-Instanz:** getrennt von `pb.voelkergroup.cloud`, eigener Datastore + Backup.
 - **Input-Validation:** PocketBase-Field-Constraints + Rules an allen Schreib-Endpunkten.
 
-## 8. Server-Umgebung (Stand 2026-05-31, verifiziert)
+## 8. Server-Umgebung (Stand 2026-05-31)
+
+> ⚠️ **Korrektur 2026-08-04:** Die hier genannte Maschine ist falsch. Die Plattform läuft auf
+> **srv1186348 / `72.62.63.41`**, dorthin zeigt auch der DNS-A-Record. Aktueller Stand:
+> `deploy/vorlagen/README.md`. Der folgende Abschnitt bleibt als Historie stehen.
 
 - **VPS:** srv1537054, Ubuntu 24.04 LTS, 2 vCPU / 8 GB, IP `187.124.165.1` (root-SSH ok)
 - **Proxy:** Traefik (Docker), Netzwerk `root_default`, certresolver `mytlschallenge`

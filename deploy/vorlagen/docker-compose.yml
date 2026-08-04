@@ -1,5 +1,6 @@
 # PocketBase-Instanz der Vorlagen-Plattform (VOE-237)
-# Liegt auf srv1537054 (187.124.165.1) unter /root/vorlagen/docker-compose.yml
+# Liegt auf srv1186348 (72.62.63.41) unter /root/vorlagen/docker-compose.yml
+# (bis 2026-08-04 stand hier srv1537054 — falsch, die Anwendung lief nie dort)
 # Reverse-Proxy: vorhandenes Traefik (Netzwerk root_default, certresolver mytlschallenge)
 # Datastore: /opt/vorlagen-pb  (enthält pocketbase-Binary v0.37.5, pb_data, pb_public)
 services:
