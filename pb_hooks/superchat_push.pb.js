@@ -128,6 +128,60 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       return { position: v.position, type: "static", attribute_identifier: ident };
     });
 
+    // ── Variablen am EFFEKTIVEN Text ausrichten ───────────────────────────────
+    // Der Text kommt aus dem Overlay (Kunde darf ihn ändern), die Variablenliste aus dem Master.
+    // Streicht ein Kunde beim Bearbeiten einen Platzhalter, deklarieren wir mehr Variablen als im
+    // Text stehen — Meta verlangt aber lückenlose {{1}}…{{n}}, alle deklariert UND alle verwendet.
+    // SuperChat lehnt das mit einem nackten 400 ohne `detail` ab (Teetz OHG, 2026-08-05), das ist
+    // für den Kunden nicht deutbar. Deshalb hier angleichen statt in den Fehler laufen.
+    const varText = String(content.body || "") + " " + (content.header ? String(content.header.value || "") : "");
+    const usedPos = [];
+    const reVar = /\{\{(\d+)\}\}/g;
+    let mVar;
+    while ((mVar = reVar.exec(varText)) !== null) {
+      const p = parseInt(mVar[1], 10);
+      if (usedPos.indexOf(p) === -1) usedPos.push(p);
+    }
+    usedPos.sort(function (a, b) { return a - b; });
+
+    const declared = {};
+    content.variables.forEach(function (v) { declared[String(v.position)] = v; });
+
+    content.variables.forEach(function (v) {
+      if (usedPos.indexOf(v.position) === -1) {
+        warnings.push('Platzhalter {{' + v.position + '}} kommt in deinem Text nicht mehr vor — die Variable wird nicht mit eingereicht.');
+      }
+    });
+
+    content.variables = usedPos.map(function (p, i) {
+      const alt = declared[String(p)];
+      if (!alt) {
+        warnings.push('Platzhalter {{' + p + '}} ist in der Vorlage nicht als Variable hinterlegt — er wird als Freitext (wildcard) eingereicht.');
+      }
+      return { position: i + 1, type: "static", attribute_identifier: alt ? alt.attribute_identifier : "wildcard" };
+    });
+
+    // Lücken schließen ({{1}}, {{3}} → {{1}}, {{2}}). Zweistufig über Tokens, sonst überschreibt
+    // eine Umnummerierung einen Platzhalter, der weiter unten noch gebraucht wird.
+    const needsRenumber = usedPos.some(function (p, i) { return p !== i + 1; });
+    if (needsRenumber) {
+      let b = String(content.body || "");
+      let h = content.header ? String(content.header.value || "") : null;
+      usedPos.forEach(function (p, i) {
+        const tok = "%%VAR" + i + "%%";
+        b = b.split("{{" + p + "}}").join(tok);
+        if (h !== null) h = h.split("{{" + p + "}}").join(tok);
+      });
+      usedPos.forEach(function (_, i) {
+        const tok = "%%VAR" + i + "%%";
+        b = b.split(tok).join("{{" + (i + 1) + "}}");
+        if (h !== null) h = h.split(tok).join("{{" + (i + 1) + "}}");
+      });
+      content.body = b;
+      if (h !== null) content.header.value = h;
+      warnings.push("Die Platzhalter wurden lückenlos neu nummeriert — Meta verlangt {{1}}, {{2}}, … ohne Lücken.");
+    }
+
     const base = ($os.getenv("SUPERCHAT_BASE_URL") || "https://api.superchat.com/v1.0").replace(/\/$/, "");
     const authHeaders = { "X-API-Key": apiKey, "Accept": "application/json" };
 
