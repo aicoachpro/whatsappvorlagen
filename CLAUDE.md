@@ -5,8 +5,19 @@
 - **SSoT für Aufgaben UND Doku ist der Obsidian-Vault „TheBrain"** (PARA), Aufgaben im **TaskNotes**-Format.
   - Aufgaben-Zentrale: `TaskNotes/_Aufgaben-Hub.md`
   - Projekt-Key dieses Repos: `whatsappvorlagen` → im Task-Frontmatter `projects: [whatsappvorlagen]`
-- **Kein Code ohne Aufgabe:** jede Änderung startet mit einer TaskNote (`status: open → in-progress → done`), nicht mit einem Linear-/Huly-Issue.
-- **Linear & Huly sind abgelöst** (Linear verlassen, Huly abgeschaltet). Alte `VOE-`/`MT-`/`CTS-`/`VOR-`-Verweise sind historisch.
+- **Issue-Prefix dieses Repos: `WV-`** → Pflichtfeld `issueId:` im Frontmatter, neue Nummern ab `WV-7`.
+- **Verbindliche Regeln:** `CLAUDE.md` im **Vault-Root** · Keys, Prefixe, Nummernkreise: `Support/Projekt-Register.md`
+- **Kein Code ohne Aufgabe:** jede Änderung startet mit einer TaskNote in `TaskNotes/Tasks/`, nicht mit einem Linear-/Huly-Issue.
+- **Status:** `triage → backlog → open → in-progress → done`, quer dazu `blocked`, am Ende ggf. `cancelled`. Erledigtes wird **nie gelöscht** — `status: done` + `completedDate`.
+- **Pflichtfelder:** `issueId` · `status` · `projects` · `tags: [task]` · `taskSourceType: taskNotes` · `dateCreated`. Ohne `tags: [task]` ist die Datei für TaskNotes unsichtbar.
+- **Abhängigkeiten:** `blockedBy:` nimmt Issue-IDs auf (Linear-Äquivalent zu „blocked by").
+- **Nächste Nummer** nie mitzählen, immer frisch ermitteln:
+  ```bash
+  grep -h "^issueId:" "$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/TheBrain/TaskNotes/Tasks/"*.md \
+    | grep -oE "WV-[0-9]+" | sort -t- -k2 -n | tail -1
+  ```
+- **Linear & Huly sind abgelöst** (Linear verlassen 07/2026, Huly abgeschaltet ohne Export). Alte `VE-`/`VOE-`/`MT-`/`CTS-`/`OWL-`/`VOR-`-IDs sind historisch und **nicht mehr nachschlagbar**.
+- **Keine Kundendaten in den Vault** — er liegt in iCloud. Namen, Rufnummern, Adressen, Geburtsdaten gehören in den lokalen Kundenordner.
 
 
 **Version:** 1.0.0 | **Stand:** 2026-05-04
@@ -30,7 +41,7 @@ Vor jeder Arbeit lesen: **[ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)** (Hu
 1. **NIEMALS** Code ändern ohne **TaskNote** (Obsidian `TaskNotes/`, `projects: [whatsappvorlagen]`) — Status open→in-progress→done. *(früher: Linear-/Huly-Issue; abgelöst.)*
 2. **NIEMALS** Issue schließen ohne Git Push + Changelog
 3. **NIEMALS** API Keys im Chat — User trägt direkt in `.env` ein
-4. **NIEMALS** Issue ohne Labels anlegen
+4. **NIEMALS** eine Aufgabe ohne `issueId`, `projects` und `tags: [task]` anlegen
 5. **NIEMALS** Superchat-API-Keys oder Notion-Tokens loggen
 6. **NIEMALS** Vorlagen-Inhalte ohne Compliance-Check (Meta-Richtlinien) versenden
 7. **NIEMALS** direkt gegen die Meta WhatsApp Business API sprechen — immer nur via Superchat (BSP)
