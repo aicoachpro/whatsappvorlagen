@@ -69,13 +69,27 @@ async function getCollection(nameOrId) {
 }
 
 // ─── 1) tenant_settings-Collection ───────────────────────────────────────────
-// AI-generated: VOR-8
+// AI-generated: VOR-8; Rules verschärft in WV-7 (Codex-Review 2026-08-11):
+//   - Schreiben nur mit aktiver Lizenz (`@request.auth.tenant.status = "active"`).
+//   - `@request.body.tenant:changed = false` verhindert Reparenting per PATCH.
+const TS_READ   = '@request.auth.role = "admin" || tenant = @request.auth.tenant';
+const TS_CREATE = '@request.auth.id != "" && (@request.auth.role = "admin" || (tenant = @request.auth.tenant && @request.auth.tenant.status = "active"))';
+const TS_UPDATE = '@request.auth.role = "admin" || (tenant = @request.auth.tenant && @request.auth.tenant.status = "active" && @request.body.tenant:changed = false)';
+const TS_DELETE = '@request.auth.role = "admin" || (tenant = @request.auth.tenant && @request.auth.tenant.status = "active")';
+const TS_RULES  = { listRule: TS_READ, viewRule: TS_READ, createRule: TS_CREATE, updateRule: TS_UPDATE, deleteRule: TS_DELETE };
+
 async function ensureTenantSettings(tenantsId) {
   let c = await getCollection('tenant_settings');
-  if (c) { console.log('  tenant_settings: vorhanden'); return c; }
+  if (c) {
+    // Rules idempotent nachziehen — sonst erreicht ein Rule-Fix bestehende Installationen nie.
+    const drift = Object.keys(TS_RULES).filter(k => c[k] !== TS_RULES[k]);
+    if (!drift.length) { console.log('  tenant_settings: vorhanden, Rules aktuell'); return c; }
+    if (DRY_RUN) { console.log(`  tenant_settings: WÜRDE Rules aktualisieren (${drift.join(', ')})`); return c; }
+    await pb('PATCH', `/api/collections/${c.id}`, TS_RULES);
+    console.log(`  tenant_settings: Rules aktualisiert (${drift.join(', ')})`);
+    return c;
+  }
   if (DRY_RUN) { console.log('  tenant_settings: WÜRDE anlegen'); return { id: 'DRY' }; }
-  // Tenant-Scoping wie bei template_overlays: Admin sieht alles, Kunde nur eigenen Tenant.
-  const own = '@request.auth.role = "admin" || tenant = @request.auth.tenant';
   c = await pb('POST', '/api/collections', {
     name: 'tenant_settings', type: 'base',
     fields: [
@@ -84,11 +98,7 @@ async function ensureTenantSettings(tenantsId) {
       { name: 'ersetzungen', type: 'json', maxSize: 2000000 },
     ],
     indexes: ['CREATE UNIQUE INDEX `idx_tenant_settings_tenant` ON `tenant_settings` (`tenant`)'],
-    listRule:   own,
-    viewRule:   own,
-    createRule: '@request.auth.id != "" && (@request.auth.role = "admin" || tenant = @request.auth.tenant)',
-    updateRule: own,
-    deleteRule: own,
+    ...TS_RULES,
   });
   console.log('  tenant_settings: NEU angelegt (mit Tenant-Scoping-Rules)');
   return c;

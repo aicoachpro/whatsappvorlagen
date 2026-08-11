@@ -19,6 +19,14 @@ routerAdd("POST", "/api/vor/superchat-key", (e) => {
     const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
     if (!tenant) return e.json(400, { ok: false, error: "Kein Tenant für diesen Zugang." });
 
+    // WV-7: nur aktive Mandanten dürfen eine (neue) SuperChat-Anbindung hinterlegen.
+    // Status/GET und Entfernen/DELETE bleiben offen — die eigene Anbindung löschen darf jeder.
+    let tenantRec = null;
+    try { tenantRec = $app.findRecordById("tenants", tenant); } catch (_) { tenantRec = null; }
+    if (!tenantRec || tenantRec.get("status") !== "active") {
+      return e.json(403, { ok: false, error: "Dein Zugang ist nicht aktiv (abgelaufen oder gesperrt) — bitte eine Verlängerung anfragen." });
+    }
+
     const body = new DynamicModel({ apiKey: "", mode: "" });
     e.bindBody(body);
     const apiKey = (body.apiKey || "").trim();

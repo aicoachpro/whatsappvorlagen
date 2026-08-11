@@ -20,6 +20,14 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
     if (!tenant) return e.json(400, { ok: false, error: "Kein Tenant." });
 
+    // WV-7: Lizenz-Status serverseitig erzwingen — abgelaufene Kunden dürfen sich zwar einloggen
+    // (Verlängerungs-Screen), aber nicht mehr bei Meta einreichen. Login allein reicht nicht.
+    let tenantRec = null;
+    try { tenantRec = $app.findRecordById("tenants", tenant); } catch (_) { tenantRec = null; }
+    if (!tenantRec || tenantRec.get("status") !== "active") {
+      return e.json(403, { ok: false, error: "Dein Zugang ist nicht aktiv (abgelaufen oder gesperrt) — bitte eine Verlängerung anfragen." });
+    }
+
     const body = new DynamicModel({ templateId: "", action: "", sessionKey: "" });
     e.bindBody(body);
     const templateId = (body.templateId || "").trim();
@@ -73,7 +81,13 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
 
     // ── Effektive Vorlage → SuperChat content ──
     const name = (ov && ov.get("name_override")) || t.get("name") || "Vorlage";
-    const category = (t.get("kategorie") === "Marketing") ? "marketing" : "utility";
+    // WV-7: vollständige, fail-closed Kategorie-Map — vorher wurde alles außer "Marketing"
+    // (auch "Authentifizierung") als utility eingereicht, d. h. mit falscher Meta-Kategorie.
+    const CAT_MAP = { "Marketing": "marketing", "Verwaltung": "utility", "Authentifizierung": "authentication" };
+    const category = CAT_MAP[t.get("kategorie")];
+    if (!category) {
+      return e.json(400, { ok: false, error: 'Diese Vorlage hat keine (bekannte) Kategorie — bitte in der Vorlagen-Pflege "Marketing", "Verwaltung" oder "Authentifizierung" setzen, dann erneut einreichen.' });
+    }
     const content = {
       type: "whats_app_template",
       category: category,
@@ -84,8 +98,13 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     if (footer) content.footer = footer;
 
     const warnings = [];
+    // WV-7: Overlay-Header mergen (Modell „Master ⊕ Overlay" — vorher wurde header_override
+    // vom Push ignoriert, obwohl das Feld im Overlay-Schema existiert).
+    const hdrOverride = ov ? ((ov.get("header_override") || "").trim()) : "";
     const header = jparse(t.get("header"));
-    if (header && header.type) {
+    if (hdrOverride) {
+      content.header = { type: "text", value: personalize(hdrOverride) };
+    } else if (header && header.type) {
       if (header.type === "text") content.header = { type: "text", value: personalize(header.value || "") };
       else warnings.push("Medien-Header (" + header.type + ") wird NICHT automatisch übertragen — bitte in SuperChat ergänzen.");
     }
@@ -94,7 +113,9 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     //   label: title → text (Pflichtfeld)
     //   ziel:  target bleibt target (URL bzw. Telefonnummer) — Pflichtfeld bei url/phone_number
     const BTN_TYPE_MAP = { static_url: "url" };
-    const buttons = jparse(t.get("buttons"));
+    // WV-7: Overlay-Buttons haben Vorrang vor Master-Buttons (gleiches Sync/Read-Format).
+    const ovButtons = ov ? jparse(ov.get("buttons")) : null;
+    const buttons = (Array.isArray(ovButtons) && ovButtons.length) ? ovButtons : jparse(t.get("buttons"));
     if (Array.isArray(buttons) && buttons.length) {
       content.buttons = buttons.map((b) => {
         if (!b) return b;
@@ -134,7 +155,11 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     // Text stehen — Meta verlangt aber lückenlose {{1}}…{{n}}, alle deklariert UND alle verwendet.
     // SuperChat lehnt das mit einem nackten 400 ohne `detail` ab (Teetz OHG, 2026-08-05), das ist
     // für den Kunden nicht deutbar. Deshalb hier angleichen statt in den Fehler laufen.
-    const varText = String(content.body || "") + " " + (content.header ? String(content.header.value || "") : "");
+    // WV-7: ALLE variablenfähigen Komponenten scannen — auch dynamische Button-URLs. Vorher sah
+    // die Analyse nur Body + Text-Header; Variablen, die nur in einem Button-Target vorkamen,
+    // galten als „nicht verwendet" und wurden entfernt (inkonsistente Payload).
+    let varText = String(content.body || "") + " " + (content.header ? String(content.header.value || "") : "");
+    (content.buttons || []).forEach(function (b) { if (b && b.target) varText += " " + String(b.target); });
     const usedPos = [];
     const reVar = /\{\{(\d+)\}\}/g;
     let mVar;
@@ -163,22 +188,19 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
 
     // Lücken schließen ({{1}}, {{3}} → {{1}}, {{2}}). Zweistufig über Tokens, sonst überschreibt
     // eine Umnummerierung einen Platzhalter, der weiter unten noch gebraucht wird.
+    // WV-7: atomar über Body, Header UND Button-Targets — vorher blieben Button-URLs bei der
+    // Neunummerierung außen vor.
     const needsRenumber = usedPos.some(function (p, i) { return p !== i + 1; });
     if (needsRenumber) {
-      let b = String(content.body || "");
-      let h = content.header ? String(content.header.value || "") : null;
-      usedPos.forEach(function (p, i) {
-        const tok = "%%VAR" + i + "%%";
-        b = b.split("{{" + p + "}}").join(tok);
-        if (h !== null) h = h.split("{{" + p + "}}").join(tok);
-      });
-      usedPos.forEach(function (_, i) {
-        const tok = "%%VAR" + i + "%%";
-        b = b.split(tok).join("{{" + (i + 1) + "}}");
-        if (h !== null) h = h.split(tok).join("{{" + (i + 1) + "}}");
-      });
-      content.body = b;
-      if (h !== null) content.header.value = h;
+      function renumber(s) {
+        let out = String(s);
+        usedPos.forEach(function (p, i) { out = out.split("{{" + p + "}}").join("%%VAR" + i + "%%"); });
+        usedPos.forEach(function (_, i) { out = out.split("%%VAR" + i + "%%").join("{{" + (i + 1) + "}}"); });
+        return out;
+      }
+      content.body = renumber(content.body || "");
+      if (content.header) content.header.value = renumber(content.header.value || "");
+      (content.buttons || []).forEach(function (b) { if (b && b.target) b.target = renumber(b.target); });
       warnings.push("Die Platzhalter wurden lückenlos neu nummeriert — Meta verlangt {{1}}, {{2}}, … ohne Lücken.");
     }
 
@@ -214,7 +236,22 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       });
     }
 
-    // ── SUBMIT: ggf. Ordner anlegen, dann bei Meta einreichen ──
+    // ── SUBMIT ───────────────────────────────────────────────────────────────
+    // WV-7: Doppel-Einreichungs-Schutz. Wiederholte Submits (z. B. Bulk-„Erneut einreichen")
+    // erzeugten über die „Kopie"-Umbenennung echte Zusatz-Einreichungen bei Meta. Gleiche
+    // Vorlage + Tenant mit Erfolg in den letzten 10 Minuten → ablehnen. Vollständiges
+    // Idempotenz-Protokoll (Preview-Token + Payload-Hash): WV-8.
+    try {
+      const cut = new Date(Date.now() - 10 * 60 * 1000).toISOString().replace("T", " ");
+      const dup = $app.findRecordsByFilter("tenant_push_log",
+        "tenant = {:t} && template = {:tpl} && error = '' && created > {:c}",
+        "-created", 1, 0, { t: tenant, tpl: templateId, c: cut });
+      if (dup && dup.length) {
+        return e.json(200, { ok: false, error: "Diese Vorlage wurde vor wenigen Minuten bereits eingereicht (siehe Verlauf). Erneutes Einreichen würde eine zusätzliche Kopie bei Meta erzeugen — bitte erst den Status im Verlauf prüfen." });
+      }
+    } catch (_) { /* Schutz darf den Push nicht blockieren */ }
+
+    // ── ggf. Ordner anlegen, dann bei Meta einreichen ──
     if (folderName && !folderId) {
       try {
         const cf = $http.send({ url: base + "/template-folders", method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders), body: JSON.stringify({ name: folderName }), timeout: 15 });
@@ -299,3 +336,17 @@ routerAdd("GET", "/api/vor/push-log", (e) => {
     return e.json(500, { ok: false, error: "Verlauf nicht verfügbar." });
   }
 }, $apis.requireAuth());
+
+// ─── Aufbewahrung: tenant_push_log nach 90 Tagen löschen (WV-7, DSGVO) ───────
+// Vorher wuchs das Log unbegrenzt (die API zeigte nur die letzten 30, gelöscht wurde nie).
+// 90 Tage reichen für Support/Diagnose; ältere Einreichungs-/Fehlerdaten haben keinen Zweck mehr.
+cronAdd("purge_push_log", "0 3 * * *", () => {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString().replace("T", " ");
+    const old = $app.findRecordsByFilter("tenant_push_log", "created < {:c}", "", 500, 0, { c: cutoff });
+    for (let i = 0; i < old.length; i++) $app.delete(old[i]);
+    if (old.length) console.log("[superchat_push] purge: " + old.length + " Log-Einträge > 90 Tage gelöscht");
+  } catch (err) {
+    console.log("[superchat_push] purge error:", String((err && err.message) || err));
+  }
+});

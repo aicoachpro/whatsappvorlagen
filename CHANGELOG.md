@@ -1,5 +1,35 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-08-11
+
+### WV-7: Codex-Review-Befunde behoben (Security · Push · Sync · DSGVO)
+
+Externes Code-Review (Codex, 8 hohe + 7 mittlere Befunde) abgearbeitet; Design-Restpunkte (Key-Rotation, volles Idempotenz-Protokoll, AVV-Doku) → WV-8.
+
+**Security**
+- **Cross-Tenant-Reparenting dicht:** `updateRule` von `template_overlays`/`tenant_settings` verlangt jetzt `@request.body.tenant:changed = false` (+ `template:changed`) — vorher konnte ein Kunde per PATCH eigene Records in fremde Mandanten umhängen. Setup-Skripte ziehen Rules nun auch auf **bestehenden** Collections nach (vorher griffen Rule-Fixes auf Live nie).
+- **Lizenz-Status serverseitig erzwungen:** abgelaufene/gesperrte Mandanten können weder Katalog lesen (templates-listRule) noch Overlays/Einstellungen schreiben noch pushen oder neue SuperChat-Keys hinterlegen (403 in `superchat_push`/`superchat_creds`). `renewal_requests` bleibt als Ausnahme offen. templates-Rule in `setup-pb-tenancy.js` und Sync identisch gehalten (überschrieben sich vorher gegenseitig).
+- **Reset-Token nicht mehr im Query-String:** Mail-Link jetzt `#reset={TOKEN}` (Fragment verlässt den Browser nicht), webui liest Fragment + Legacy-Query, entfernt den Token sofort per `history.replaceState`; `<meta name="referrer" content="no-referrer">`.
+- **`sc_session_key`** wird bei Logout, 401 und Login gelöscht (blieb vorher auf geteilten Rechnern bis Tab-Ende liegen).
+
+**SuperChat-Push (`pb_hooks/superchat_push.pb.js`)**
+- **Kategorie-Map vollständig + fail-closed:** `Authentifizierung → authentication` (wurde vorher als `utility` eingereicht!), unbekannte Kategorie → klare 400-Meldung statt falscher Einreichung.
+- **Button-URLs in der Variablen-Analyse:** Platzhalter in dynamischen Button-Targets gelten nicht mehr als „unbenutzt" und werden bei der Neunummerierung atomar mitgezogen (Anschluss an WV-5).
+- **Overlay wird vollständig gemergt:** `header_override` und Overlay-`buttons` fließen jetzt in den Push ein (Modell „Master ⊕ Overlay" — Felder existierten im Schema, wurden aber ignoriert).
+- **Doppel-Einreichungs-Schutz:** gleiche Vorlage + Tenant mit Erfolg < 10 Min → Submit abgelehnt (vorher erzeugte z. B. Bulk-„Erneut einreichen" über die „Kopie"-Umbenennung echte Zusatz-Einreichungen bei Meta).
+- **Log-Aufbewahrung:** Cron löscht `tenant_push_log`-Einträge nach 90 Tagen (wuchs vorher unbegrenzt — DSGVO).
+
+**Sync (`agents/sync-superchat-to-pb.js`)**
+- **Schema-idempotent:** `TEMPLATES_FIELDS` enthält jetzt `sc_category`/`header`/`channels`/`track_links` + Kategorie-Wert `Authentifizierung`; `ensureCollection()` migriert jedes fehlende Feld (vorher nur `geloescht_am`, Rest hing am manuellen `extend-templates-schema.js`).
+- **Papierkorb-Schwelle:** Minimum 5 → 2. Eine Einzellöschung läuft weiter durch, aber 4 Vorlagen (ggf. 100 % eines kleinen Katalogs) rutschen nicht mehr an der 10-%-Grenze vorbei.
+- **`--dry-run` strikt read-only** (legte vorher auf frischer Installation die Collection an).
+- **Heartbeat-Fehler = degraded:** Exit 1 + Telegram-Warnung statt grünem CI-Lauf bei blinder Totmann-Überwachung.
+
+**DSGVO**
+- **Keine Kunden-E-Mails mehr an Telegram** (`telegram_notify.pb.js`, `check-tenant-expiry.js`) — Nachrichten nennen nur noch Firmen-/Mandantenname; Adressen stehen in der Admin-UI.
+
+**Nacharbeit auf Live:** `setup-pb-tenancy.js`, `setup-tenant-settings.js`, `setup-mail.js` einmal ausführen (Rules + Mail-Template); pb_hooks/webui kommen per Auto-Deploy.
+
 ## 2026-08-04
 
 ### Der Auto-Deploy lief seit jeher auf dem falschen Server

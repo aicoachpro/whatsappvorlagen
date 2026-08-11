@@ -18,8 +18,10 @@ onRecordAuthRequest((e) => {
       $app.save(u);
       const TG = $os.getenv("TELEGRAM_BOT_TOKEN"), CHAT = $os.getenv("TELEGRAM_CHAT_ID");
       if (TG && CHAT) {
-        let name = u.email();
-        try { const t = $app.findRecordById("tenants", u.get("tenant")); name = (t.get("firma") || t.get("name") || u.email()) + " (" + u.email() + ")"; } catch (_) {}
+        // WV-7 (DSGVO-Datenminimierung): KEINE E-Mail-Adressen an Telegram — nur Firmen-/
+        // Mandantenname. Details (wer genau) stehen in der Admin-UI.
+        let name = "Mandant " + (u.get("tenant") || "?");
+        try { const t = $app.findRecordById("tenants", u.get("tenant")); name = t.get("firma") || t.get("name") || name; } catch (_) {}
         try { $http.send({ url: "https://api.telegram.org/bot" + TG + "/sendMessage", method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: CHAT, text: "✅ Registriert / Einladung angenommen: " + name }), timeout: 10 }); } catch (_) {}
       }
     }

@@ -64,7 +64,7 @@ npm run setup:mail            # bzw. node agents/setup-mail.js --dry-run  (Vorsc
 Optional via `.env` überschreibbar: `MAIL_SMTP_HOST/PORT/USER`, `MAIL_SENDER_NAME/ADDRESS`, `APP_URL`.
 Der Agent braucht gültige `PB_ADMIN_EMAIL`/`PB_ADMIN_PASSWORD` (Superuser) in `.env`.
 
-**Test danach:** im Login „Passwort vergessen?" → Mail muss ankommen; Link (`{APP_URL}/?reset={TOKEN}`)
+**Test danach:** im Login „Passwort vergessen?" → Mail muss ankommen; Link (`{APP_URL}/#reset={TOKEN}`)
 → Passwort setzen → Login.
 
 > Ohne SMTP funktioniert die App weiter: Kunde-Anlegen zeigt dann das **Backup-Passwort** zur

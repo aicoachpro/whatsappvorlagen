@@ -96,12 +96,29 @@ async function ensureUserFields(tenantsId) {
 }
 
 // ─── 3) template_overlays ────────────────────────────────────────────────────
+// Tenant-Scoping: Admin sieht alles, Kunde nur eigenen Tenant. WV-7 (Codex-Review 2026-08-11):
+//   - Schreiben nur mit AKTIVER Lizenz (`@request.auth.tenant.status = "active"`) — vorher
+//     konnten abgelaufene Kunden weiter Overlays anlegen/ändern.
+//   - `:changed` verhindert Reparenting: die alte updateRule prüfte nur den BESTEHENDEN Record,
+//     nicht ob der PATCH `tenant`/`template` auf einen fremden Mandanten umbiegt.
+const OV_READ   = '@request.auth.role = "admin" || tenant = @request.auth.tenant';
+const OV_CREATE = '@request.auth.id != "" && (@request.auth.role = "admin" || (tenant = @request.auth.tenant && @request.auth.tenant.status = "active"))';
+const OV_UPDATE = '@request.auth.role = "admin" || (tenant = @request.auth.tenant && @request.auth.tenant.status = "active" && @request.body.tenant:changed = false && @request.body.template:changed = false)';
+const OV_DELETE = '@request.auth.role = "admin" || (tenant = @request.auth.tenant && @request.auth.tenant.status = "active")';
+const OV_RULES  = { listRule: OV_READ, viewRule: OV_READ, createRule: OV_CREATE, updateRule: OV_UPDATE, deleteRule: OV_DELETE };
+
 async function ensureOverlays(tenantsId, templatesId) {
   let c = await getCollection('template_overlays');
-  if (c) { console.log('  template_overlays: vorhanden'); return c; }
+  if (c) {
+    // Rules idempotent nachziehen — sonst erreicht ein Rule-Fix bestehende Installationen nie.
+    const drift = Object.keys(OV_RULES).filter(k => c[k] !== OV_RULES[k]);
+    if (!drift.length) { console.log('  template_overlays: vorhanden, Rules aktuell'); return c; }
+    if (DRY_RUN) { console.log(`  template_overlays: WÜRDE Rules aktualisieren (${drift.join(', ')})`); return c; }
+    await pb('PATCH', `/api/collections/${c.id}`, OV_RULES);
+    console.log(`  template_overlays: Rules aktualisiert (${drift.join(', ')})`);
+    return c;
+  }
   if (DRY_RUN) { console.log('  template_overlays: WÜRDE anlegen'); return { id: 'DRY' }; }
-  // Tenant-Scoping-Rule: Admin sieht alles, Kunde nur eigenen Tenant
-  const own = '@request.auth.role = "admin" || tenant = @request.auth.tenant';
   c = await pb('POST', '/api/collections', {
     name: 'template_overlays', type: 'base',
     fields: [
@@ -116,28 +133,27 @@ async function ensureOverlays(tenantsId, templatesId) {
       { name: 'notes',           type: 'editor' },
     ],
     indexes: ['CREATE UNIQUE INDEX `idx_overlay_tenant_template` ON `template_overlays` (`tenant`, `template`)'],
-    listRule:   own,
-    viewRule:   own,
-    createRule: '@request.auth.id != "" && (@request.auth.role = "admin" || tenant = @request.auth.tenant)',
-    updateRule: own,
-    deleteRule: own,
+    ...OV_RULES,
   });
   console.log('  template_overlays: NEU angelegt (mit Tenant-Scoping-Rules)');
   return c;
 }
 
-// ─── 4) templates-Rules (lesen: alle Auth; schreiben: nur admin) ─────────────
+// ─── 4) templates-Rules (lesen: aktive Kunden ohne Papierkorb; schreiben: nur admin) ──
+// WV-7: identisch mit TEMPLATES_LIST_RULE in agents/sync-superchat-to-pb.js halten! Der Sync
+// setzt die Rule täglich — weichen die Strings ab, überschreiben sich die Skripte gegenseitig.
+// Kunden lesen nur mit aktiver Lizenz und ohne Papierkorb-Einträge.
 async function setTemplateRules() {
   const c = await getCollection('templates');
-  const desiredRead  = '@request.auth.id != ""';
+  const desiredRead  = '@request.auth.id != "" && (@request.auth.role = "admin" || (geloescht_am = "" && @request.auth.tenant.status = "active"))';
   const desiredWrite = '@request.auth.role = "admin"';
   if (c.listRule === desiredRead && c.updateRule === desiredWrite) { console.log('  templates: Rules bereits gesetzt'); return; }
-  if (DRY_RUN) { console.log('  templates: WÜRDE Rules setzen (read=auth, write=admin)'); return; }
+  if (DRY_RUN) { console.log('  templates: WÜRDE Rules setzen (read=aktive Kunden, write=admin)'); return; }
   await pb('PATCH', `/api/collections/${c.id}`, {
     listRule: desiredRead, viewRule: desiredRead,
     createRule: desiredWrite, updateRule: desiredWrite, deleteRule: desiredWrite,
   });
-  console.log('  templates: Rules gesetzt (read=auth, write=admin)');
+  console.log('  templates: Rules gesetzt (read=aktive Kunden, write=admin)');
 }
 
 (async () => {

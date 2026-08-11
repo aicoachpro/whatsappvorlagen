@@ -34,10 +34,14 @@ let STATE = { templates: [], overlays: {}, fileToken: '', filter: 'Alle', q: '' 
 /* ─── Auth ─────────────────────────────────────────────────────────────── */
 async function login(email, password) {
   const r = await api('POST', '/api/collections/users/auth-with-password', { identity: email, password });
+  // WV-7: Session-Key des vorherigen Benutzers darf einen Benutzerwechsel nicht überleben.
+  sessionStorage.removeItem('sc_session_key');
   store.token = r.token; store.user = r.record;
   await boot();
 }
-function logout() { store.token = null; store.user = null; show('login'); }
+// WV-7: sc_session_key IMMER mit ausräumen — sonst bleibt der SuperChat-Key des vorherigen
+// Mandanten auf einem geteilten Rechner bis zum Tab-Ende in sessionStorage liegen.
+function logout() { store.token = null; store.user = null; sessionStorage.removeItem('sc_session_key'); show('login'); }
 function show(view) {
   $('#login').classList.toggle('hidden', view !== 'login');
   $('#app').classList.toggle('hidden', view !== 'app');
@@ -1042,9 +1046,18 @@ $('#bulk-close').addEventListener('click', closeBulk);
 $('#bulk').addEventListener('click', (e) => { if (e.target.id === 'bulk') closeBulk(); });
 
 (async () => {
-  // VOR-11: Reset-Link aus der Willkommens-/Passwort-vergessen-Mail (`?reset=TOKEN`)
-  const resetToken = new URLSearchParams(location.search).get('reset');
-  if (resetToken) { showResetConfirm(resetToken); return; }
+  // VOR-11: Reset-Link aus der Willkommens-/Passwort-vergessen-Mail.
+  // WV-7: Token kommt jetzt im Fragment (`#reset=TOKEN`) — das verlässt den Browser nicht und
+  // landet nicht in Server-Logs. `?reset=` bleibt als Fallback für bereits verschickte Mails
+  // (Token-Laufzeit 48 h). In beiden Fällen: Token sofort aus der sichtbaren URL entfernen.
+  let resetToken = '';
+  if (location.hash.startsWith('#reset=')) resetToken = decodeURIComponent(location.hash.slice(7));
+  if (!resetToken) resetToken = new URLSearchParams(location.search).get('reset') || '';
+  if (resetToken) {
+    history.replaceState(null, '', location.pathname);
+    showResetConfirm(resetToken);
+    return;
+  }
   if (store.token) { try { await boot(); return; } catch {} }
   show('login');
 })();

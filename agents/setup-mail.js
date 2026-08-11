@@ -7,7 +7,8 @@
  *   1. SMTP (Postfach noreply@voelkergroup.cloud) → smtp.hostinger.com
  *   2. meta.appURL + Absender (senderName/senderAddress)
  *   3. resetPasswordTemplate der `users`-Collection → Link auf die Kunden-UI
- *      (`{APP_URL}/?reset={TOKEN}`, deutscher Text) — dient für „Passwort vergessen"
+ *      (`{APP_URL}/#reset={TOKEN}`, deutscher Text; Fragment statt Query seit WV-7,
+ *      damit der Token nicht in Access-Logs landet) — dient für „Passwort vergessen"
  *      UND die Willkommens-Mail beim Kunde-Anlegen.
  *
  * Das Postfach-Passwort kommt aus `.env` (MAIL_PASSWORD) — NIE in Code/Chat/Log.
@@ -88,7 +89,9 @@ const RESET_BODY =
   '  <li>Danach meldest du dich in der App an unter:<br><a href="{APP_URL}">{APP_URL}</a></li>\n' +
   '  <li>Dein <strong>Login-Name ist deine E-Mail-Adresse</strong> – genau die, an die diese Nachricht ging.</li>\n' +
   '</ol>\n' +
-  '<p><a class="btn" href="{APP_URL}/?reset={TOKEN}" target="_blank" rel="noopener">Passwort setzen &amp; loslegen</a></p>\n' +
+  // WV-7: Token im URL-FRAGMENT (#reset=) statt Query (?reset=) — das Fragment verlässt den
+  // Browser nie und landet damit nicht in Access-Logs oder Proxy-Historien.
+  '<p><a class="btn" href="{APP_URL}/#reset={TOKEN}" target="_blank" rel="noopener">Passwort setzen &amp; loslegen</a></p>\n' +
   '<p>Ein kurzes Erklär-Video folgt in Kürze. Bei Fragen einfach auf diese E-Mail antworten.</p>\n' +
   '<p>Mit herzlichen Grüßen<br>Thomas von Völker AI Solutions</p>';
 
@@ -99,7 +102,7 @@ const RESET_BODY =
     console.log(`  SMTP: ${SMTP_USER} @ ${SMTP_HOST}:${SMTP_PORT} (TLS ${SMTP_PORT === 465}) — Passwort: ${'*'.repeat(8)}`);
     console.log(`  Absender: "${SENDER_NAME}" <${SENDER_ADDR}>`);
     console.log(`  App-URL: ${APP_URL}`);
-    console.log(`  Reset-Template-Link: ${APP_URL}/?reset={TOKEN}`);
+    console.log(`  Reset-Template-Link: ${APP_URL}/#reset={TOKEN}`);
     console.log(`  Passwort-Link gültig: ${RESET_HOURS} h`);
     return;
   }

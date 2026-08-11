@@ -79,8 +79,11 @@ const VERBOSE  = args.includes('--verbose');
 const FORCE    = args.includes('--force');
 
 // Schutzschwelle gegen Teilantworten der Superchat-API (siehe Kopf).
+// WV-7: Minimum von 5 auf 2 gesenkt — vorher wanderten bis zu 4 Vorlagen IMMER automatisch in
+// den Papierkorb, auch wenn das weit über 10% (oder 100% eines kleinen Katalogs) waren. Jetzt
+// bleibt genau EINE Einzellöschung immer erlaubt; ab 2 gleichzeitig greift die 10%-Grenze.
 const MISSING_PCT_LIMIT = 0.10; // >10% der aktiven Records
-const MISSING_MIN_ABS   = 5;    // ... aber erst ab 5 Stück, sonst blockiert jede Einzellöschung
+const MISSING_MIN_ABS   = 2;    // ... ab 2 Stück — eine Einzellöschung blockiert nie
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -172,7 +175,10 @@ async function pbAuth() {
   PB_TOKEN = j.token;
 }
 
-// Collection-Definition: Superchat-Felder + (leere) Anreicherungsfelder
+// Collection-Definition: Superchat-Felder + (leere) Anreicherungsfelder.
+// WV-7: vollständig — vorher fehlten sc_category/header/channels/track_links und der
+// kategorie-Wert "Authentifizierung"; der Sync SCHREIBT diese Felder aber (buildScFields)
+// und hing damit am manuell auszuführenden extend-templates-schema.js.
 const TEMPLATES_FIELDS = [
   { name: 'superchat_id',      type: 'text',   required: true },
   { name: 'status',            type: 'text'   },
@@ -183,8 +189,13 @@ const TEMPLATES_FIELDS = [
   { name: 'superchat_updated', type: 'text'   },
   // ── Papierkorb (VOR-Sync 2026-07-29): leer = aktiv, ISO-Zeitstempel = gelöscht in Superchat ──
   { name: 'geloescht_am',      type: 'text'   },
+  // ── echte Superchat-Komponenten (VOE-243) ──
+  { name: 'sc_category',       type: 'text'   },
+  { name: 'header',            type: 'json',   maxSize: 200000 },
+  { name: 'channels',          type: 'json',   maxSize: 200000 },
+  { name: 'track_links',       type: 'bool'   },
   // ── Völker-Anreicherung (admin-editierbar, Superchat kennt diese Felder nicht) ──
-  { name: 'kategorie',         type: 'select', maxSelect: 1, values: ['Verwaltung', 'Marketing'] },
+  { name: 'kategorie',         type: 'select', maxSelect: 1, values: ['Verwaltung', 'Marketing', 'Authentifizierung'] },
   { name: 'ordner',            type: 'text'   },
   { name: 'ueberschrift',      type: 'text'   },
   { name: 'buttons',           type: 'json',   maxSize: 2000000 },
@@ -201,6 +212,8 @@ async function ensureCollection() {
     col = await pb('GET', '/api/collections/templates');
   } catch (err) {
     if (!String(err.message).includes('PB 404')) throw err;
+    // WV-7: --dry-run ist strikt read-only — vorher wurde die Collection trotz DRY_RUN angelegt.
+    if (DRY_RUN) return 'fehlt — WÜRDE anlegen (DRY-RUN)';
     await pb('POST', '/api/collections', {
       name:    'templates',
       type:    'base',
@@ -211,20 +224,30 @@ async function ensureCollection() {
     return 'neu angelegt';
   }
 
-  // Feld `geloescht_am` idempotent nachziehen (bestehende Installation).
-  const have = new Set(col.fields.map(f => f.name));
-  if (!have.has('geloescht_am')) {
-    if (DRY_RUN) return 'vorhanden (geloescht_am fehlt — DRY-RUN)';
-    await pb('PATCH', `/api/collections/${col.id}`, {
-      fields: [...col.fields, { name: 'geloescht_am', type: 'text' }],
-    });
-    return 'vorhanden, Feld geloescht_am ergänzt';
-  }
-  return 'vorhanden';
+  // WV-7: Schema-Drift vollständig nachziehen — jedes fehlende Feld aus TEMPLATES_FIELDS plus
+  // fehlende kategorie-Select-Werte (vorher wurde nur geloescht_am migriert).
+  const have    = new Set(col.fields.map(f => f.name));
+  const missing = TEMPLATES_FIELDS.filter(f => !have.has(f.name));
+  let katFix = false;
+  const fields = col.fields.map(f => {
+    if (f.name === 'kategorie' && f.type === 'select' && !(f.values || []).includes('Authentifizierung')) {
+      katFix = true;
+      return { ...f, values: [...f.values, 'Authentifizierung'] };
+    }
+    return f;
+  });
+  if (!missing.length && !katFix) return 'vorhanden';
+  const plan = [...missing.map(f => f.name), ...(katFix ? ['kategorie+Authentifizierung'] : [])].join(', ');
+  if (DRY_RUN) return `vorhanden — WÜRDE ergänzen: ${plan} (DRY-RUN)`;
+  await pb('PATCH', `/api/collections/${col.id}`, { fields: [...fields, ...missing] });
+  return `vorhanden, ergänzt: ${plan}`;
 }
 
 // Gelöschte Vorlagen sind für Kunden unsichtbar — serverseitig, nicht nur im Frontend.
-const TEMPLATES_LIST_RULE = '@request.auth.id != "" && (@request.auth.role = "admin" || geloescht_am = "")';
+// WV-7: zusätzlich Lizenz-Status erzwingen — abgelaufene Mandanten lesen den Katalog nicht mehr.
+// Identisch mit setTemplateRules() in agents/setup-pb-tenancy.js halten (sonst überschreiben
+// sich die Skripte gegenseitig — der Sync setzt die Rule täglich).
+const TEMPLATES_LIST_RULE = '@request.auth.id != "" && (@request.auth.role = "admin" || (geloescht_am = "" && @request.auth.tenant.status = "active"))';
 
 async function ensureListRule() {
   const col = await pb('GET', '/api/collections/templates');
@@ -432,11 +455,14 @@ async function syncOne(t, byScId) {
   console.log(`\n[PB-Sync] Done in ${dauer}s — created=${nCreate} updated=${nUpdate} restored=${nRestore} trashed=${nTrash} previews=${nImg} errors=${nErr}\n`);
 
   // ── Heartbeat nur bei sauberem Lauf ────────────────────────────────────────
+  // WV-7: ein Heartbeat-Fehler ist ein DEGRADED-Lauf (Exit 1), kein Erfolg — sonst meldet CI
+  // grün, während der Totmann-Schalter (health-check.js) nicht aktualisiert wurde.
+  let hbErr = null;
   if (!DRY_RUN && !LIMIT && !blocked && !nErr) {
     try {
       await writeHeartbeat({ created: nCreate, updated: nUpdate, restored: nRestore, trashed: nTrash, superchat: scAll.length });
       console.log('[PB-Sync] Heartbeat geschrieben ✓');
-    } catch (err) { console.error(`[PB-Sync] Heartbeat fehlgeschlagen: ${err.message}`); }
+    } catch (err) { hbErr = err; console.error(`[PB-Sync] Heartbeat fehlgeschlagen: ${err.message}`); }
   }
 
   // ── Telegram: nur bei Änderungen oder Fehlern ──────────────────────────────
@@ -464,6 +490,11 @@ async function syncOne(t, byScId) {
     console.log('[PB-Sync] Keine Änderungen — kein Telegram.');
   }
 
+  if (hbErr) {
+    await telegram(`⚠️ Vorlagen-Sync: Daten synchron, aber Heartbeat NICHT geschrieben (${String(hbErr.message || hbErr).slice(0, 200)}).\nDie Totmann-Überwachung läuft blind — bitte prüfen.`);
+    console.error('[PB-Sync] Lauf degraded (Heartbeat) → Exit 1.');
+    process.exit(1);
+  }
   if (nErr) process.exit(1);
 })().catch(async err => {
   console.error('[PB-Sync] Fatal:', err.message || err);
