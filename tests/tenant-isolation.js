@@ -5,6 +5,8 @@
  *   - Kunde A sieht NUR Overlays seines Tenants (nicht die von B)
  *   - Kunde A kann B's Overlay weder direkt lesen noch ändern noch löschen
  *   - Kunde A sieht/ändert sein eigenes Overlay
+ *   - WV-7: Kunde A kann sein Overlay NICHT in einen fremden Tenant umhängen (Reparenting)
+ *   - WV-7: abgelaufener Kunde darf einloggen, sieht aber keine Templates und schreibt nichts
  *
  * Legt temporäre Test-Tenants/Kunden/Overlays an und räumt sie am Ende restlos weg.
  * .env: PB_URL, PB_ADMIN_EMAIL, PB_ADMIN_PASSWORD
@@ -103,6 +105,26 @@ function check(name, cond) { results.push({ name, ok: !!cond }); console.log(`  
     // 6) B's Overlay ist unverändert
     const stillB = await req('GET', `/api/collections/template_overlays/records/${oB.id}`, undefined, su);
     check('B\'s Overlay blieb unverändert ("B-secret")', stillB.json && stillB.json.notes === 'B-secret');
+
+    // 7) WV-7 Reparenting: A hängt sein EIGENES Overlay per PATCH in Tenant B um → blockiert
+    const repar = await req('PATCH', `/api/collections/template_overlays/records/${oA.id}`, { tenant: tB.id }, tokA);
+    const oAafter = (await req('GET', `/api/collections/template_overlays/records/${oA.id}`, undefined, su)).json;
+    check('A kann sein Overlay NICHT in Tenant B umhängen (Reparenting blockiert)',
+      repar.status >= 400 && oAafter && oAafter.tenant === tA.id);
+
+    // 8) WV-7 Lizenz-Status: abgelaufener Kunde darf einloggen (Verlängerungs-Screen),
+    //    sieht aber keine Templates und kann keine Overlays anlegen.
+    const tC = (await req('POST', '/api/collections/tenants/records', { name: 'TEST Tenant C (expired)', slug: 'test-c-' + Date.now(), status: 'expired' }, su)).json;
+    created.tenants.push(tC.id);
+    const passC = pw(), emailC = `test-c-${Date.now()}@example.invalid`;
+    const uC = (await req('POST', '/api/collections/users/records', { email: emailC, password: passC, passwordConfirm: passC, tenant: tC.id, role: 'customer', verified: true }, su)).json;
+    created.users.push(uC.id);
+    const tokC = (await req('POST', '/api/collections/users/auth-with-password', { identity: emailC, password: passC })).json.token;
+    check('Abgelaufener Kunde C kann sich einloggen (Verlängerungs-Screen)', !!tokC);
+    const tplListC = (await req('GET', '/api/collections/templates/records?perPage=5', undefined, tokC)).json;
+    check('C (expired) sieht KEINE Templates', tplListC && Array.isArray(tplListC.items) && tplListC.items.length === 0);
+    const ovC = await req('POST', '/api/collections/template_overlays/records', { tenant: tC.id, template: tpl.id, notes: 'C' }, tokC);
+    check('C (expired) kann KEIN Overlay anlegen', ovC.status >= 400);
 
   } finally {
     // Cleanup (als Superuser)

@@ -64,7 +64,7 @@ Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, S
 
 Reliability · Data Integrity · Security · Performance · Observability · Maintainability ·
 **Compliance** (Meta WhatsApp Business API + DSGVO). Mandantentrennung per Cross-Tenant-Test
-verifiziert (tests/tenant-isolation.js, 8/8).
+verifiziert (tests/tenant-isolation.js, 12/12 — seit WV-7 inkl. Reparenting- und Lizenz-Status-Checks).
 
 ## §6 Referenzen
 
