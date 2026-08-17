@@ -25,7 +25,8 @@ async function api(method, path, body) {
   if (res.status === 401) { logout(); throw new Error('Sitzung abgelaufen'); }
   const txt = await res.text();
   const json = txt ? JSON.parse(txt) : null;
-  if (!res.ok) throw new Error(json?.message || `Fehler ${res.status}`);
+  // Hook-Routen (/api/vor/…) melden Fehler als { error }, Collection-API als { message }.
+  if (!res.ok) throw new Error(json?.message || json?.error || `Fehler ${res.status}`);
   return json;
 }
 
@@ -422,7 +423,14 @@ async function resetOverlay(templateId) {
 
 /* ─── Admin: Kundenverwaltung (nur role=admin) ─────────────────────────── */
 const isAdmin = () => store.user?.role === 'admin';
-const genPass = () => 'K' + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 5).toUpperCase() + '7!';
+// WV-9: kryptographisch zufällig (vorher Math.random) — Backup-Passwörter sind echte Zugangsdaten.
+const genPass = () => {
+  const a = 'abcdefghijkmnpqrstuvwxyz23456789';
+  const buf = crypto.getRandomValues(new Uint32Array(9));
+  let s = '';
+  for (const n of buf) s += a[n % a.length];
+  return 'K' + s.slice(0, 6) + s.slice(6).toUpperCase() + '7!';
+};
 
 async function openAdmin() {
   $('#admin').classList.remove('hidden');
@@ -557,8 +565,8 @@ async function addUserToTenant(tid) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { alert('Das sieht nicht nach einer E-Mail-Adresse aus.'); return; }
   const pass = genPass();
   try {
-    await api('POST', '/api/collections/users/records',
-      { email, password: pass, passwordConfirm: pass, tenant: tid, role: 'customer', emailVisibility: false });
+    // WV-9: serverseitig (tenant_admin.pb.js) — erzwingt role=customer + existierenden Mandanten.
+    await api('POST', '/api/vor/admin/customer-user', { tenantId: tid, email, password: pass });
     let mailed = false;
     try { await api('POST', '/api/collections/users/request-password-reset', { email }); mailed = true; } catch (_) {}
     alert(mailed
@@ -566,9 +574,7 @@ async function addUserToTenant(tid) {
       : `Benutzer ${email} angelegt.\n\nMailversand nicht möglich — bitte Zugangsdaten manuell weitergeben:\nLogin: ${location.origin}/\nE-Mail: ${email}\nPasswort: ${pass}`);
     openAdmin();
   } catch (e) {
-    alert(/already exists|unique/i.test(e.message)
-      ? `Es gibt bereits einen Zugang mit der E-Mail ${email}.`
-      : 'Anlegen fehlgeschlagen: ' + e.message);
+    alert('Anlegen fehlgeschlagen: ' + e.message);
   }
 }
 // Onboarding-Felder → ersetzungen-Liste
@@ -622,25 +628,12 @@ async function createCustomer(e) {
   const ersetzungen = buildErsetzungen();
   const msg = $('#c-msg'), btn = $('#c-save');
   msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Legt an…';
-  let tenant = null;
   try {
-    // 1) Mandant mit Lizenz (365 Tage) + Personalisierung
-    const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
-    // Vertragsdatum (Start) aus dem Formular; Ablauf = +365 Tage (VOR-3).
-    const invStr = $('#c-invited').value;
-    const invited = invStr ? new Date(invStr + 'T00:00:00') : new Date();
-    const exp = new Date(invited); exp.setDate(exp.getDate() + 365);
-    tenant = await api('POST', '/api/collections/tenants/records', {
-      name, slug, status: 'active', firma, ersetzungen,
-      invited_at: invited.toISOString(), expires_at: exp.toISOString(),
-    });
-    // 2) Kunde (immer role=customer). Kein `verified` — das darf nur der Superuser setzen;
-    //    unbestätigte Kunden dürfen sich trotzdem einloggen (authRule der users-Collection ist leer).
-    await api('POST', '/api/collections/users/records', { email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
-    // 3) Self-Service-Einstellungen (Firma + Links) als tenant_settings — kundeneditierbar (VOR-8).
-    //    catch: bricht das Onboarding nicht, falls die Collection (noch) nicht ausgerollt ist.
-    await api('POST', '/api/collections/tenant_settings/records', { tenant: tenant.id, firma, ersetzungen }).catch(() => {});
-    // 4) Willkommens-Mail mit „Passwort setzen"-Link (VOR-11); Backup-Passwort als Fallback.
+    // WV-9: Mandant + Benutzer + tenant_settings entstehen serverseitig in EINER Transaktion
+    // (pb_hooks/tenant_admin.pb.js) — kein Client-Rollback, keine Waisen-Records mehr.
+    // Vertragsdatum (Start) aus dem Formular; Ablauf = +365 Tage (VOR-3, serverseitig).
+    await api('POST', '/api/vor/admin/customer', { name, email, password: pass, firma, ersetzungen, invitedAt: $('#c-invited').value });
+    // Willkommens-Mail mit „Passwort setzen"-Link (VOR-11) NACH dem Commit; Backup-Passwort als Fallback.
     let mailed = false;
     try { await api('POST', '/api/collections/users/request-password-reset', { email }); mailed = true; } catch (_) {}
     msg.className = 'ok-msg';
@@ -654,15 +647,12 @@ async function createCustomer(e) {
     $('#c-name').value = ''; $('#c-email').value = ''; $('#c-firma').value = ''; $('#c-web').value = ''; $('#c-more').value = ''; $('#c-pass').value = genPass();
     // Liste nicht sofort neu rendern (würde die Zugangsdaten-Anzeige überschreiben)
   } catch (ex) {
-    // Rollback: eben angelegten Mandant wieder entfernen, damit nichts verwaist
-    if (tenant) await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
     msg.className = 'error'; msg.textContent = 'Fehler: ' + ex.message;
   } finally { btn.disabled = false; btn.textContent = 'Kunde anlegen'; }
 }
 /* ─── CSV-Bulk-Import (VOR-12) ──────────────────────────────────────────────── */
 // AI-generated: VOR-12 — Latin-1/Semikolon-CSV; Bestehende übersprungen; neue → anlegen + Willkommens-Mail
 function csvCellId(s) { return 'ci-' + s.replace(/[^a-z0-9]/gi, '_'); }
-function slugify(s) { return (s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 function parseDeDate(s) {
   const m = (s || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
   return m ? new Date(+m[3], +m[2] - 1, +m[1], 12, 0, 0) : null; // 12:00 gegen TZ-Verschub
@@ -712,30 +702,26 @@ async function csvImportPreview() {
   } catch (e) { box.innerHTML = `<p class="error">Fehler: ${esc(e.message)}</p>`; }
 }
 async function createCustomerRow(r) {
+  // WV-9: Anlage serverseitig transaktional. Ein MAILFEHLER rollt nichts mehr zurück —
+  // vorher blieb dann ein Benutzer ohne Mandant zurück (users.tenant kaskadiert nicht),
+  // den ein erneuter Import wegen der bestehenden E-Mail auch noch übersprang.
   const name = r.name || r.email.split('@')[0];
-  const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
   const invited = parseDeDate(r.start) || new Date();
-  const exp = new Date(invited); exp.setDate(exp.getDate() + 365);
   const pass = genPass();
-  const tenant = await api('POST', '/api/collections/tenants/records', {
-    name, slug, status: 'active', firma: name, ersetzungen: [],
-    invited_at: invited.toISOString(), expires_at: exp.toISOString(),
-  });
-  try {
-    await api('POST', '/api/collections/users/records', { email: r.email, password: pass, passwordConfirm: pass, tenant: tenant.id, role: 'customer', emailVisibility: false });
-    await api('POST', '/api/collections/tenant_settings/records', { tenant: tenant.id, firma: name, ersetzungen: [] }).catch(() => {});
-    await api('POST', '/api/collections/users/request-password-reset', { email: r.email });
-  } catch (e) {
-    await api('DELETE', `/api/collections/tenants/records/${tenant.id}`).catch(() => {});
-    throw e;
-  }
+  await api('POST', '/api/vor/admin/customer', { name, email: r.email, password: pass, firma: name, ersetzungen: [], invitedAt: invited.toISOString() });
+  let mailed = true;
+  try { await api('POST', '/api/collections/users/request-password-reset', { email: r.email }); } catch (_) { mailed = false; }
+  return { mailed, pass };
 }
 async function runCsvImport(rows) {
   let ok = 0, fail = 0;
   for (const r of rows) {
     const el = document.getElementById(csvCellId(r.email)), st = el && el.querySelector('.bp-status');
     if (st) st.textContent = '… legt an';
-    try { await createCustomerRow(r); ok++; if (st) st.textContent = '✓ angelegt + Mail'; }
+    try {
+      const res = await createCustomerRow(r); ok++;
+      if (st) st.textContent = res.mailed ? '✓ angelegt + Mail' : `✓ angelegt — Mail fehlgeschlagen, Backup-PW: ${res.pass}`;
+    }
     catch (e) { fail++; if (el) { el.classList.remove('bp-ok'); el.classList.add('bp-fail'); } if (st) st.textContent = '✗ ' + (e.message || 'Fehler'); }
     await new Promise(res => setTimeout(res, 300)); // sanft gegen Rate-Limits/Mailversand
   }
@@ -773,25 +759,25 @@ async function resetCustomerPass(uid) {
 async function deleteCustomer(uid, tid) {
   // Hat der Mandant weitere Benutzer, darf NUR der Benutzer weg — `tenants` löscht per
   // cascadeDelete alle Overlays mit, das würde sonst die Arbeit der Kollegen vernichten.
+  // WV-9: Die Ansicht liefert nur noch den DIALOGTEXT; entschieden wird serverseitig in der
+  // Transaktion (tenant_admin.pb.js). Weicht der Server-Stand von der Ansicht ab → 409.
   const geschwister = (STATE.adminCustomers || []).filter(u => u.tenant && u.tenant === tid && u.id !== uid);
   const user = (STATE.adminCustomers || []).find(u => u.id === uid);
   const wer = user ? user.email : 'diesen Benutzer';
+  const istLetzter = !(tid && geschwister.length);
 
-  if (tid && geschwister.length) {
-    if (!confirm(`Benutzer ${wer} entfernen?\n\nDer Kunde bleibt bestehen (${geschwister.length} weitere${geschwister.length === 1 ? 'r' : ''} Benutzer). Vorlagen-Anpassungen, Einstellungen und die SuperChat-Verbindung bleiben erhalten.`)) return;
-    try {
-      await api('DELETE', `/api/collections/users/records/${uid}`);
-      openAdmin();
-    } catch (e) { alert('Fehler: ' + e.message); }
-    return;
-  }
+  const frage = istLetzter
+    ? `${wer} ist der letzte Benutzer dieses Kunden.\n\nLöschen entfernt den kompletten Mandanten — inklusive aller Vorlagen-Anpassungen, Einstellungen und der SuperChat-Verbindung. Das lässt sich nicht rückgängig machen.\n\nWirklich löschen?`
+    : `Benutzer ${wer} entfernen?\n\nDer Kunde bleibt bestehen (${geschwister.length} weitere${geschwister.length === 1 ? 'r' : ''} Benutzer). Vorlagen-Anpassungen, Einstellungen und die SuperChat-Verbindung bleiben erhalten.`;
+  if (!confirm(frage)) return;
 
-  if (!confirm(`${wer} ist der letzte Benutzer dieses Kunden.\n\nLöschen entfernt den kompletten Mandanten — inklusive aller Vorlagen-Anpassungen, Einstellungen und der SuperChat-Verbindung. Das lässt sich nicht rückgängig machen.\n\nWirklich löschen?`)) return;
   try {
-    await api('DELETE', `/api/collections/users/records/${uid}`);
-    if (tid) await api('DELETE', `/api/collections/tenants/records/${tid}`).catch(() => {});
+    await api('DELETE', `/api/vor/admin/customer-user/${uid}?expectLast=${istLetzter ? 1 : 0}`);
     openAdmin();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) {
+    alert(e.message);
+    if (/veraltet/i.test(e.message)) openAdmin();
+  }
 }
 function closeAdmin() { $('#admin').classList.add('hidden'); }
 
