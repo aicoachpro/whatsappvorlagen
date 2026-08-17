@@ -61,10 +61,15 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     if (ov && ov.get("hidden")) return e.json(400, { ok: false, error: "Vorlage ist für diesen Tenant ausgeblendet." });
     let st = null;
     try { st = $app.findFirstRecordByFilter("tenant_settings", "tenant = {:t}", { t: tenant }); } catch (_) { st = null; }
-    const firma = st ? (st.get("firma") || "") : "";
+    // WV-10: fail-closed — ohne tenant_settings würde die Vorlage UNPERSONALISIERT (Völker-Inhalte)
+    // bei Meta eingereicht, während die UI per tenants-Fallback personalisierte Texte zeigt.
+    if (!st) {
+      return e.json(400, { ok: false, error: "Für deinen Zugang sind noch keine Personalisierungs-Einstellungen hinterlegt. Bitte einmal unter „Einstellungen" Firma und Links speichern, dann erneut einreichen." });
+    }
+    const firma = st.get("firma") || "";
     // PocketBase liefert JSON-Felder als Roh-Bytes → über String() + JSON.parse lesen.
     function jparse(v) { if (v === null || v === undefined) return null; try { const s = String(v); return s === "" ? null : JSON.parse(s); } catch (_) { return null; } }
-    let ersetzungen = st ? jparse(st.get("ersetzungen")) : null;
+    let ersetzungen = jparse(st.get("ersetzungen"));
     if (!Array.isArray(ersetzungen)) ersetzungen = [];
 
     // ── Personalisierung (spiegelt webui personalize()) ──
