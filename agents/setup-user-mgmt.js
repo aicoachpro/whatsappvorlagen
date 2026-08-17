@@ -45,7 +45,10 @@ const SELF  = 'id = @request.auth.id';
   const tenants = await pb('GET', '/api/collections/tenants');
   const users   = await pb('GET', '/api/collections/users');
 
-  const tenantRules = { listRule: ADMIN, viewRule: ADMIN, createRule: ADMIN, updateRule: ADMIN, deleteRule: ADMIN };
+  // WV-12: viewRule KANONISCH mit setup-tenant-lifecycle.js — Kunde liest seinen EIGENEN Mandanten
+  // (Verlängerungsdialog VOR-13 + Personalisierungs-Fallback). Vorher setzte dieses Skript Admin-only
+  // und das zuletzt gelaufene Setup-Skript gewann. Drift-Assertion: tests/tenant-isolation.js.
+  const tenantRules = { listRule: ADMIN, viewRule: `${ADMIN} || id = @request.auth.tenant`, createRule: ADMIN, updateRule: ADMIN, deleteRule: ADMIN };
   // users: admin verwaltet alle; Kunde darf nur seinen eigenen Datensatz sehen, NICHT ändern
   const userRules   = { listRule: ADMIN, viewRule: `${ADMIN} || ${SELF}`, createRule: ADMIN, updateRule: ADMIN, deleteRule: ADMIN };
 
