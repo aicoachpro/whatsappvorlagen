@@ -29,7 +29,7 @@ Datei-Register. Jede neue Datei wird hier UND in [ARCHITECTURE_DESIGN.md §6](AR
 - `lib/` — config.js (SSoT), doc-sync.js
 - `agents/` — Superchat→PocketBase-Sync, Datenqualität, PocketBase-Setup, Self-Healing, Previews
 - `webui/` — Kunden-UI (index.html, app.js, styles.css)
-- `pb_hooks/` — serverseitige PocketBase-JS-Hooks (z. B. `superchat_creds.pb.js`: verschlüsselte Per-Tenant-Anbindung, VOR-9)
+- `pb_hooks/` — serverseitige PocketBase-JS-Hooks (`superchat_creds.pb.js`: verschlüsselte Per-Tenant-Anbindung, VOR-9; `tenant_admin.pb.js`: transaktionaler Kunden-Lifecycle, WV-9; `users_guard.pb.js`: users-Invarianten, WV-11)
 - `tests/` — tenant-isolation.js
 - `.github/workflows/` — `sync-superchat.yml` (täglich 05:00 UTC, Superchat→PB inkl. Papierkorb), `health-check.yml` (30 Min), `lizenz-check.yml` (täglich 06:00 UTC)
 - `deploy/vorlagen/` — docker-compose.yml, README.md (Setup/Backup/Restore)

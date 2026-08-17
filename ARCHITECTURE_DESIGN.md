@@ -54,7 +54,9 @@ Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, S
 | Superchat-Sync | `agents/sync-superchat-to-pb.js` + `.github/workflows/sync-superchat.yml` | Master-Katalog → PocketBase, täglich 05:00 UTC (Upsert + Papierkorb + Heartbeat, ADR-05) |
 | Header-Media / Ordner / Kategorie | `agents/{sync-header-media,fill-ordner,derive-kategorie}-*.js` | Datenqualität |
 | Tenancy/User-Mgmt-Setup | `agents/setup-pb-tenancy.js`, `agents/setup-user-mgmt.js`, `agents/setup-tenant-settings.js`, `agents/setup-tenant-secrets.js` | Collections + API-Rules (inkl. `tenant_settings`, VOR-8; `tenant_secrets` superuser-only, VOR-9) |
-| Server-Hooks | `pb_hooks/superchat_creds.pb.js`, `pb_hooks/superchat_push.pb.js` | PocketBase-JS-Hooks: verschlüsselte Per-Tenant-Anbindung (AES-256-GCM, `SUPERCHAT_ENC_KEY`) + Push = Meta-Einreichung (effektive Vorlage serverseitig, Ordner-Auto, Audit `tenant_push_log`), VOR-9 |
+| Server-Hooks | `pb_hooks/superchat_creds.pb.js`, `pb_hooks/superchat_push.pb.js` | PocketBase-JS-Hooks: verschlüsselte Per-Tenant-Anbindung (AES-256-GCM, `SUPERCHAT_ENC_KEY`) + Push = Meta-Einreichung (effektive Vorlage serverseitig, fail-closed ohne `tenant_settings` WV-10, Ordner-Auto, Audit `tenant_push_log`), VOR-9; beide Routen nur `role=customer` (WV-11) |
+| Admin-Lifecycle-Hook | `pb_hooks/tenant_admin.pb.js` | Transaktionale Kunden-Anlage/-Löschung für die Admin-UI (`/api/vor/admin/customer{,-user}`, `$app.runInTransaction`, Last-User-Check serverseitig + `expectLast`-409), WV-9 |
+| users-Guard | `pb_hooks/users_guard.pb.js` | Request-Hooks auf `users`: App-Admin legt nur `role=customer` an, kein Rollen-/Tenant-Wechsel, Admin-Löschung nur Superuser, WV-11 |
 | Kunden-UI | `webui/` | Galerie, Overlay-Editor, Kundenverwaltung, SuperChat-Verbindung |
 | Config (SSoT) | `lib/config.js` | VERSION + DOC_FILES + CONFIG |
 | Self-Healing / DocSync | `agents/self-healing.js`, `lib/doc-sync.js` | Versions-Drift, Obsidian-Spiegel |
@@ -64,7 +66,8 @@ Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, S
 
 Reliability · Data Integrity · Security · Performance · Observability · Maintainability ·
 **Compliance** (Meta WhatsApp Business API + DSGVO). Mandantentrennung per Cross-Tenant-Test
-verifiziert (tests/tenant-isolation.js, 12/12 — seit WV-7 inkl. Reparenting- und Lizenz-Status-Checks).
+verifiziert (tests/tenant-isolation.js, 24/24 — seit WV-7 inkl. Reparenting- und Lizenz-Status-Checks,
+seit WV-13 inkl. Multi-User-Lebenszyklen, users_guard-Grenzen und Rules-Drift-Assertion).
 
 ## §6 Referenzen
 

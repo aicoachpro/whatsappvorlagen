@@ -1,5 +1,29 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-08-17
+
+### WV-9–WV-13: Codex-Review Multi-User-Feature abgearbeitet
+
+Externes Code-Review (Codex, 5 High + 4 Medium) zum Multi-User-pro-Kunde-Feature; alle Befunde am Code verifiziert und behoben.
+
+**WV-10 — Push fail-closed (kundenwirksamster Befund)**
+- Fehlte der `tenant_settings`-Record, reichte der Push die Vorlage kommentarlos **unpersonalisiert** (Völker-Inhalte) bei Meta ein, während die UI per `tenants`-Fallback personalisierte Texte zeigte. Jetzt: 400 mit Handlungsanweisung.
+
+**WV-9 — Kunden-Lifecycle serverseitig transaktional (`pb_hooks/tenant_admin.pb.js`)**
+- Anlage (einzeln/CSV/weiterer Benutzer) und Löschung laufen über drei Admin-Routen mit `$app.runInTransaction` statt als einzelne Collection-Calls aus dem Browser.
+- Last-User-Check frisch **in der Transaktion** statt aus dem veraltbaren Client-Snapshot (max. 500 geladen); weicht der Server-Stand von der bestätigten Ansicht ab → 409 statt versehentlicher Mandanten-Löschung.
+- `tenant_settings` ist Pflichtteil der Anlage (vorher `.catch(() => {})` — Anschluss an WV-10); Mailfehler rollt nichts mehr zurück (vorher blieb im CSV-Pfad ein Benutzer ohne Mandant zurück, den ein Re-Import wegen bestehender E-Mail übersprang).
+- `genPass()` auf `crypto.getRandomValues()` (vorher `Math.random()`).
+
+**WV-11 — Admin-Grenzen (`pb_hooks/users_guard.pb.js`)**
+- App-Admin konnte per Collection-API weitere Admins erzeugen, Benutzer in fremde Mandanten umhängen und sich selbst einen Tenant zuweisen (SuperChat-Impersonation). Jetzt: nur `role=customer` mit Tenant anlegbar, kein Rollen-/Tenant-Wechsel, Admin-Löschung nur Superuser; alle SuperChat-Routen verlangen `role=customer`.
+
+**WV-12 — Rules-Drift**
+- `setup-user-mgmt.js` und `setup-tenant-lifecycle.js` überschrieben sich gegenseitig die `tenants.viewRule` (unter Admin-only fiel der Verlängerungsdialog VOR-13 still aus). Kanonisch: `admin || id = @request.auth.tenant`, mit Drift-Assertion im Test.
+
+**WV-13 — Tests**
+- `tests/tenant-isolation.js` 12→24 Checks: Multi-User-Lebenszyklen (1→2, 2→1, 1→0 inkl. Kaskade), `expectLast`-409, Admin-Endpunkt-Zugriffsschutz, users_guard-Grenzen, Rules-Drift.
+
 ## 2026-08-11
 
 ### WV-7: Codex-Review-Befunde behoben (Security · Push · Sync · DSGVO)
