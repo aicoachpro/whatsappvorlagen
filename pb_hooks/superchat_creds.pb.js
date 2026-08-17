@@ -16,7 +16,9 @@
 // Helfer (inline, da JSVM-Handler isoliert laufen): erste WhatsApp-WABA aus /channels holen.
 routerAdd("POST", "/api/vor/superchat-key", (e) => {
   try {
-    const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
+    // WV-11: nur Kunden-Zugänge — ein Admin mit (selbst zugewiesenem) Tenant darf die Anbindung nicht übernehmen.
+    if (!e.auth || e.auth.get("role") !== "customer") return e.json(403, { ok: false, error: "Nur für Kunden-Zugänge." });
+    const tenant = e.auth.get("tenant") || "";
     if (!tenant) return e.json(400, { ok: false, error: "Kein Tenant für diesen Zugang." });
 
     // WV-7: nur aktive Mandanten dürfen eine (neue) SuperChat-Anbindung hinterlegen.
@@ -73,7 +75,9 @@ routerAdd("POST", "/api/vor/superchat-key", (e) => {
 // ─── GET: Status (kein Klartext) ─────────────────────────────────────────────
 routerAdd("GET", "/api/vor/superchat-key", (e) => {
   try {
-    const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
+    // WV-11: nur Kunden-Zugänge — ein Admin mit (selbst zugewiesenem) Tenant darf die Anbindung nicht übernehmen.
+    if (!e.auth || e.auth.get("role") !== "customer") return e.json(403, { ok: false, error: "Nur für Kunden-Zugänge." });
+    const tenant = e.auth.get("tenant") || "";
     if (!tenant) return e.json(400, { configured: false, error: "Kein Tenant." });
     let rec = null;
     try { rec = $app.findFirstRecordByFilter("tenant_secrets", "tenant = {:t}", { t: tenant }); } catch (_) { rec = null; }
@@ -88,7 +92,9 @@ routerAdd("GET", "/api/vor/superchat-key", (e) => {
 // ─── DELETE: Anbindung entfernen ─────────────────────────────────────────────
 routerAdd("DELETE", "/api/vor/superchat-key", (e) => {
   try {
-    const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
+    // WV-11: nur Kunden-Zugänge — ein Admin mit (selbst zugewiesenem) Tenant darf die Anbindung nicht übernehmen.
+    if (!e.auth || e.auth.get("role") !== "customer") return e.json(403, { ok: false, error: "Nur für Kunden-Zugänge." });
+    const tenant = e.auth.get("tenant") || "";
     if (!tenant) return e.json(400, { ok: false, error: "Kein Tenant." });
     let rec = null;
     try { rec = $app.findFirstRecordByFilter("tenant_secrets", "tenant = {:t}", { t: tenant }); } catch (_) { rec = null; }

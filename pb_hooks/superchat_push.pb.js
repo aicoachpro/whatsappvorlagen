@@ -17,7 +17,9 @@
 
 routerAdd("POST", "/api/vor/push-template", (e) => {
   try {
-    const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
+    // WV-11: nur Kunden-Zugänge — ein Admin mit (selbst zugewiesenem) Tenant darf nicht für Kunden pushen.
+    if (!e.auth || e.auth.get("role") !== "customer") return e.json(403, { ok: false, error: "Nur für Kunden-Zugänge." });
+    const tenant = e.auth.get("tenant") || "";
     if (!tenant) return e.json(400, { ok: false, error: "Kein Tenant." });
 
     // WV-7: Lizenz-Status serverseitig erzwingen — abgelaufene Kunden dürfen sich zwar einloggen
@@ -64,7 +66,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     // WV-10: fail-closed — ohne tenant_settings würde die Vorlage UNPERSONALISIERT (Völker-Inhalte)
     // bei Meta eingereicht, während die UI per tenants-Fallback personalisierte Texte zeigt.
     if (!st) {
-      return e.json(400, { ok: false, error: "Für deinen Zugang sind noch keine Personalisierungs-Einstellungen hinterlegt. Bitte einmal unter „Einstellungen" Firma und Links speichern, dann erneut einreichen." });
+      return e.json(400, { ok: false, error: "Für deinen Zugang sind noch keine Personalisierungs-Einstellungen hinterlegt. Bitte einmal unter ⚙️ Einstellungen Firma und Links speichern, dann erneut einreichen." });
     }
     const firma = st.get("firma") || "";
     // PocketBase liefert JSON-Felder als Roh-Bytes → über String() + JSON.parse lesen.
@@ -324,7 +326,9 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
 // ─── GET: letzte Einreichungen des Tenants ───────────────────────────────────
 routerAdd("GET", "/api/vor/push-log", (e) => {
   try {
-    const tenant = e.auth ? (e.auth.get("tenant") || "") : "";
+    // WV-11: nur Kunden-Zugänge — ein Admin mit (selbst zugewiesenem) Tenant darf nicht für Kunden pushen.
+    if (!e.auth || e.auth.get("role") !== "customer") return e.json(403, { ok: false, error: "Nur für Kunden-Zugänge." });
+    const tenant = e.auth.get("tenant") || "";
     if (!tenant) return e.json(400, { ok: false, error: "Kein Tenant." });
     let recs = [];
     try { recs = $app.findRecordsByFilter("tenant_push_log", "tenant = {:t}", "-created", 30, 0, { t: tenant }); } catch (_) { recs = []; }
