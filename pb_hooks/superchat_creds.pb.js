@@ -65,7 +65,57 @@ routerAdd("POST", "/api/vor/superchat-key", (e) => {
     rec.set("mode", mode);
     $app.save(rec);
 
-    return e.json(200, { ok: true, validated: true, mode: mode, wabaId: wabaId, channelName: channelName, masked: "••••" + apiKey.slice(-4), stored: mode === "stored" });
+    // 3) WV-14: Kontakt-Attribute des Kunden sofort abrufen und gegen die Variablen der Vorlagen
+    //    abgleichen. Der Push mappt Variablen per NAME auf die Attribute des Kunden — hier sieht der
+    //    Kunde vorab, was zugeordnet wird und welche Attribute in seinem SuperChat noch fehlen.
+    //    Rein informativ: ein Fehler hier bricht die (bereits gespeicherte) Anbindung nicht ab.
+    let attrCheck = null;
+    try {
+      function normName(s) { return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
+      const have = {};
+      let after = "", fetched = true;
+      for (let page = 0; page < 10; page++) {
+        const r = $http.send({ url: base + "/custom-attributes?limit=100" + (after ? "&after=" + encodeURIComponent(after) : ""), method: "GET", headers: { "X-API-Key": apiKey, "Accept": "application/json" }, timeout: 15 });
+        if (r.statusCode < 200 || r.statusCode >= 300) { fetched = false; break; }
+        const arr = (r.json && r.json.results) || [];
+        for (let i = 0; i < arr.length; i++) { if (arr[i] && arr[i].name && (!arr[i].resource || arr[i].resource === "contact")) have[normName(arr[i].name)] = arr[i].name; }
+        after = (r.json && r.json.pagination && r.json.pagination.next_cursor) || "";
+        if (!after) break;
+      }
+      if (fetched) {
+        // Welche Variablen nutzen die (nicht gelöschten) Vorlagen? Standard-Variablen brauchen kein Attribut.
+        const STD = { "vorname": 1, "nachname": 1, "geschlecht": 1, "freitext": 1 };
+        const needed = {};
+        const tpls = $app.findAllRecords("templates");
+        for (let i = 0; i < tpls.length; i++) {
+          if (tpls[i].get("geloescht_am")) continue;
+          let vars = null;
+          try { vars = JSON.parse(String(tpls[i].get("variables") || "null")); } catch (_) { vars = null; }
+          if (!Array.isArray(vars)) continue;
+          for (let j = 0; j < vars.length; j++) {
+            const v = vars[j];
+            if (!v || !v.display_name || / - URL Suffix$/.test(v.display_name)) continue;
+            const k = normName(v.display_name);
+            if (STD[k]) continue;
+            if (!needed[k]) needed[k] = { name: v.display_name, count: 0, smart: v.type !== "contact_attribute" };
+            needed[k].count++;
+          }
+        }
+        const matched = [], missing = [];
+        Object.keys(needed).forEach(function (k) {
+          const n = needed[k];
+          if (have[k]) matched.push({ name: have[k], count: n.count });
+          else missing.push({ name: n.name, count: n.count, smart: n.smart });
+        });
+        matched.sort(function (a, b) { return b.count - a.count; });
+        missing.sort(function (a, b) { return b.count - a.count; });
+        attrCheck = { attributeCount: Object.keys(have).length, matched: matched, missing: missing };
+      }
+    } catch (err) {
+      console.log("[superchat_creds] attr-check:", String((err && err.message) || err));
+    }
+
+    return e.json(200, { ok: true, validated: true, mode: mode, wabaId: wabaId, channelName: channelName, masked: "••••" + apiKey.slice(-4), stored: mode === "stored", attrCheck: attrCheck });
   } catch (err) {
     console.log("[superchat_creds] error:", String((err && err.message) || err));
     return e.json(500, { ok: false, error: "Interner Fehler bei der SuperChat-Anbindung." });

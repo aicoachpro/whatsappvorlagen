@@ -322,6 +322,7 @@ async function pushPreview(id) {
           <li>Kategorie: <b>${esc(p.category)}</b> · Sprache: <b>${esc(p.language)}</b></li>
           <li>${folderTxt}</li>
           <li>${p.buttonCount} Button(s), ${p.variableCount} Variable(n)</li>
+          ${(p.variables || []).map(v => `<li>{{${v.position}}} → <b>${esc(v.label || v.attribute)}</b></li>`).join('')}
           ${warn}
         </ul>
         <p class="placeholder">⚠️ Verbindlich: Meta prüft die Vorlage (kann abgelehnt werden, zählt gegen dein Template-Limit).</p>
@@ -877,6 +878,17 @@ async function saveSuperchatKey() {
       else sessionStorage.removeItem('sc_session_key');
       msg.className = 'ok-msg';
       msg.textContent = `✓ Verbunden${r.channelName ? ' (' + esc(r.channelName) + ')' : ''} — ${mode === 'stored' ? 'verschlüsselt gespeichert' : 'nur für diese Sitzung'}.`;
+      // WV-14: Abgleich der Kontakt-Attribute anzeigen (welche Variablen zugeordnet werden, welche fehlen)
+      const ac = r.attrCheck;
+      if (ac) {
+        const ok = (ac.matched || []).map(m => `<li>✓ ${esc(m.name)}</li>`).join('');
+        const miss = (ac.missing || []).map(m => `<li>${m.smart ? '○' : '⚠️'} ${esc(m.name)} <span class="sub">(${m.count} Vorlage${m.count === 1 ? '' : 'n'}${m.smart ? ', SuperChat-Smart-Platzhalter' : ''})</span></li>`).join('');
+        msg.innerHTML = `✓ Verbunden${r.channelName ? ' (' + esc(r.channelName) + ')' : ''} — ${mode === 'stored' ? 'verschlüsselt gespeichert' : 'nur für diese Sitzung'}.` +
+          `<p>${ac.attributeCount} Kontakt-Attribute in deinem SuperChat gefunden.</p>` +
+          (ok ? `<p><b>Wird automatisch zugeordnet:</b></p><ul class="sc-steps">${ok}</ul>` : '') +
+          (miss ? `<p><b>Fehlt in deinem SuperChat — wird als Freitext eingereicht:</b></p><ul class="sc-steps">${miss}</ul>
+                   <p class="sub">Tipp: Lege in SuperChat unter Einstellungen → Kontakt-Attribute ein Attribut mit genau diesem Namen an. Beim nächsten Einreichen wird es automatisch verwendet.</p>` : '');
+      }
       loadSuperchatStatus(); refreshScButton();
     } else {
       msg.className = 'error'; msg.textContent = 'Fehler: ' + (r.error || 'Key nicht akzeptiert.');

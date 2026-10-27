@@ -1,5 +1,16 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-10-27
+
+### WV-14: Push-Variablen auf die Kontakt-Attribute des Kunden mappen
+
+Kunden-Einreichungen kamen in deren SuperChat nur mit `{{1}}`/`{{2}}` (Freitext) an statt mit den passenden Kontakt-Attributen.
+
+- **Ursache:** `superchat_push.pb.js` schickte die `attribute_id` (`ca_…`) aus dem **Völker-Master-Workspace** mit — die gibt es im Workspace des Kunden nicht.
+- **Push:** holt `GET /custom-attributes` des Kunden frisch und mappt jede Variable **per Name** (case-/whitespace-insensitiv) auf dessen `ca_…`-ID. Reihenfolge: Standard (`first_name`/`last_name`/`gender`, Freitext und URL-Suffix → `wildcard`) → gleichnamiges Kunden-Attribut → `wildcard` mit konkreter Warnung (fehlendes Attribut anlegen). Die Vorschau zeigt pro Platzhalter die Zuordnung.
+- **Key hinterlegen:** `superchat_creds.pb.js` ruft die Kontakt-Attribute sofort ab und gleicht sie mit den Variablen aller nicht gelöschten Vorlagen ab (`attrCheck`: zugeordnet / fehlt); die Einstellungen zeigen das dem Kunden an.
+- **Offen:** Smart-Platzhalter („Informelle Grußformel", „Aktueller Benutzer") haben keinen dokumentierten Create-Identifier → weiter `wildcard`, außer der Kunde legt ein gleichnamiges Kontakt-Attribut an. Klärung nur per Schreib-Test gegen SuperChat möglich.
+
 ## 2026-08-17
 
 ### WV-9–WV-13: Codex-Review Multi-User-Feature abgearbeitet

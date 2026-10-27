@@ -140,20 +140,54 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     // Beim LESEN liefert SuperChat aber eine andere Form (deshalb scheiterte der Push lange):
     //   Custom:   { position, display_name, attribute_id: "ca_…", type: "contact_attribute" }
     //   Standard: { position, display_name, type: "static" }   ← KEIN Identifier enthalten!
-    // → hier zurückübersetzen. Custom: attribute_id direkt nutzen. Standard: per Map raten.
-    // Smart-/Sender-Attribute (Aktueller Benutzer, Grußformel, Workspacename) haben kein
-    // Create-Pendant → als Freitext-Platzhalter (wildcard) einreichen + Warnung (in SuperChat
-    // ggf. manuell auf das Smart-Attribut umstellen). "Freitext"/URL-Suffix = von Haus aus wildcard.
+    // → hier zurückübersetzen. Standard per Map, alles andere per NAME gegen die Kontakt-Attribute
+    // des KUNDEN-Workspace (WV-14). Die attribute_id aus dem Master gehört zum Völker-Workspace und
+    // existiert beim Kunden nicht — vorher landete die Variable dort deshalb nur als {{1}}/Freitext.
+    // Smart-/Sender-Attribute (Aktueller Benutzer, Grußformel) haben kein Create-Pendant: legt der
+    // Kunde ein gleichnamiges Kontakt-Attribut an, wird es genommen, sonst wildcard + Warnung.
     const STD_VAR_MAP = { "Vorname": "first_name", "Nachname": "last_name", "Geschlecht": "gender", "Freitext": "wildcard" };
-    const rawVars = jparse(t.get("variables"));
-    content.variables = (Array.isArray(rawVars) ? rawVars : []).map((v) => {
-      if (!v) return { position: 0, type: "static", attribute_identifier: "wildcard" };
-      let ident = v.attribute_id || v.attribute_identifier || STD_VAR_MAP[v.display_name];
-      if (!ident) {
-        ident = "wildcard";
-        warnings.push('Variable "' + (v.display_name || ("#" + v.position)) + '" wird als Freitext-Platzhalter (wildcard) eingereicht — in SuperChat ggf. auf das passende Smart-Attribut umstellen.');
+    const STD_LABEL = { first_name: "Vorname", last_name: "Nachname", gender: "Geschlecht", wildcard: "Freitext" };
+    const scBase = ($os.getenv("SUPERCHAT_BASE_URL") || "https://api.superchat.com/v1.0").replace(/\/$/, "");
+    function normName(s) { return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
+    // Alle Kontakt-Attribute des Kunden holen (paginiert). null = Abruf fehlgeschlagen.
+    function fetchCustomerAttrs() {
+      const byName = {};
+      let after = "";
+      for (let page = 0; page < 10; page++) {
+        let r;
+        try {
+          r = $http.send({ url: scBase + "/custom-attributes?limit=100" + (after ? "&after=" + encodeURIComponent(after) : ""), method: "GET", headers: { "X-API-Key": apiKey, "Accept": "application/json" }, timeout: 15 });
+        } catch (_) { return null; }
+        if (r.statusCode < 200 || r.statusCode >= 300) return null;
+        const arr = (r.json && r.json.results) || [];
+        for (let i = 0; i < arr.length; i++) {
+          const a = arr[i];
+          if (a && a.id && a.name && (!a.resource || a.resource === "contact")) byName[normName(a.name)] = { id: a.id, name: a.name };
+        }
+        after = (r.json && r.json.pagination && r.json.pagination.next_cursor) || "";
+        if (!after) break;
       }
-      return { position: v.position, type: "static", attribute_identifier: ident };
+      return byName;
+    }
+    const rawVars = jparse(t.get("variables"));
+    const varList = Array.isArray(rawVars) ? rawVars : [];
+    const custAttrs = varList.length ? fetchCustomerAttrs() : {};
+    if (custAttrs === null) warnings.push("Deine Kontakt-Attribute konnten gerade nicht von SuperChat abgerufen werden — Attribut-Variablen werden als Freitext eingereicht. Bitte später erneut versuchen.");
+    content.variables = varList.map((v) => {
+      if (!v) return { position: 0, type: "static", attribute_identifier: "wildcard", label: "Freitext" };
+      const dn = v.display_name || "";
+      const std = STD_VAR_MAP[dn] || (/ - URL Suffix$/.test(dn) ? "wildcard" : "");
+      if (std) return { position: v.position, type: "static", attribute_identifier: std, label: STD_LABEL[std] };
+      const hit = custAttrs ? custAttrs[normName(dn)] : null;
+      if (hit) return { position: v.position, type: "static", attribute_identifier: hit.id, label: hit.name };
+      if (custAttrs) {
+        if (v.type === "contact_attribute") {
+          warnings.push('Das Kontakt-Attribut "' + dn + '" gibt es in deinem SuperChat nicht. Leg es in SuperChat unter Einstellungen → Kontakt-Attribute mit genau diesem Namen an, dann wird es automatisch zugeordnet. Bis dahin wird es als Freitext eingereicht.');
+        } else {
+          warnings.push('"' + (dn || ("#" + v.position)) + '" ist ein SuperChat-Smart-Platzhalter, den die Schnittstelle nicht setzen kann. Er wird als Freitext eingereicht. Alternative: Kontakt-Attribut mit genau diesem Namen in SuperChat anlegen.');
+        }
+      }
+      return { position: v.position, type: "static", attribute_identifier: "wildcard", label: "Freitext (statt „" + (dn || ("#" + v.position)) + "“)" };
     });
 
     // ── Variablen am EFFEKTIVEN Text ausrichten ───────────────────────────────
@@ -190,8 +224,11 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       if (!alt) {
         warnings.push('Platzhalter {{' + p + '}} ist in der Vorlage nicht als Variable hinterlegt — er wird als Freitext (wildcard) eingereicht.');
       }
-      return { position: i + 1, type: "static", attribute_identifier: alt ? alt.attribute_identifier : "wildcard" };
+      return { position: i + 1, type: "static", attribute_identifier: alt ? alt.attribute_identifier : "wildcard", label: alt ? alt.label : "Freitext" };
     });
+    // Für die Vorschau merken, dann das Hilfsfeld entfernen (SuperChat kennt "label" nicht).
+    const variableMap = content.variables.map(function (v) { return { position: v.position, label: v.label, attribute: v.attribute_identifier }; });
+    content.variables.forEach(function (v) { delete v.label; });
 
     // Lücken schließen ({{1}}, {{3}} → {{1}}, {{2}}). Zweistufig über Tokens, sonst überschreibt
     // eine Umnummerierung einen Platzhalter, der weiter unten noch gebraucht wird.
@@ -238,6 +275,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
           header: content.header || null,
           buttonCount: (content.buttons || []).length,
           variableCount: (content.variables || []).length,
+          variables: variableMap,
           warnings: warnings,
         },
       });
