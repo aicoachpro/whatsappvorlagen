@@ -2,6 +2,13 @@
 
 ## 2026-10-27
 
+### WV-16: Einreichen in mehrere Postfächer (Coexist-Modus) — UI v1.2.0
+
+- Vorlagen gehören bei SuperChat zur WABA; `POST /templates` kennt kein Postfach-/Kanal-Feld. Im Coexist-Modus hat jedes Postfach eine eigene Nummer + WABA → pro Postfach einreichen. Bisher wurde immer die WABA des **ersten** WhatsApp-Kanals genommen.
+- `superchat_push.pb.js`: holt `GET /channels`, gruppiert WhatsApp-Kanäle nach WABA (Label = Inbox-Name + Nummer), liefert sie in der Vorschau (`accounts`, `defaultWabaId`). Neuer Body-Parameter `wabaId`, serverseitig gegen die Kanäle des Keys validiert (fremde WABA → 400). Push-Verlauf vermerkt bei mehreren Konten das Ziel-Postfach.
+- UI: Postfach-Auswahl (Mehrfachauswahl, im Browser gemerkt) in Einzel-Vorschau und „Alle einreichen", nur sichtbar bei mehr als einem Konto. Eine Einreichung pro gewähltem Postfach.
+- Nebenbei: Vorschau schickt jetzt auch den Session-Key mit (vorher scheiterte die Vorschau im Modus „nur Sitzung").
+
 ### WV-15: Versionsanzeige + „Was ist neu" + kein veralteter Browser-Cache
 
 - **Ursache „nach Deploy keine Veränderung sichtbar":** `pb_public` kam ohne `Cache-Control` — Browser cachten `app.js`/`index.html` heuristisch weiter. Neu `pb_hooks/static_cache.pb.js`: `Cache-Control: no-cache` für alle Nicht-API-GETs (Revalidierung, unverändert = 304).

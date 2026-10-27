@@ -30,7 +30,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       return e.json(403, { ok: false, error: "Dein Zugang ist nicht aktiv (abgelaufen oder gesperrt) — bitte eine Verlängerung anfragen." });
     }
 
-    const body = new DynamicModel({ templateId: "", action: "", sessionKey: "" });
+    const body = new DynamicModel({ templateId: "", action: "", sessionKey: "", wabaId: "" });
     e.bindBody(body);
     const templateId = (body.templateId || "").trim();
     const action = body.action === "submit" ? "submit" : "preview";
@@ -53,6 +53,36 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       if (!cipher) return e.json(400, { ok: false, error: "Kein Key gespeichert." });
       try { apiKey = $security.decrypt(cipher, encK); } catch (_) { return e.json(500, { ok: false, error: "Entschlüsselung fehlgeschlagen." }); }
     }
+
+    // ── WV-16: Ziel-Postfach (WhatsApp-Business-Konto) ──
+    // Vorlagen gehören bei SuperChat zur WABA, nicht zum Kanal. Im Coexist-Modus hat jedes Postfach
+    // eine eigene Nummer + eigene WABA → pro Postfach einreichen. Der Client wählt per wabaId; erlaubt
+    // sind nur WABAs, die an den WhatsApp-Kanälen DIESES Keys hängen (kein Einreichen in fremde Konten).
+    const accounts = [];
+    try {
+      const chRes = $http.send({ url: ($os.getenv("SUPERCHAT_BASE_URL") || "https://api.superchat.com/v1.0").replace(/\/$/, "") + "/channels?limit=100", method: "GET", headers: { "X-API-Key": apiKey, "Accept": "application/json" }, timeout: 15 });
+      const chs = (chRes.statusCode >= 200 && chRes.statusCode < 300 && chRes.json && chRes.json.results) || [];
+      const byWaba = {};
+      for (let i = 0; i < chs.length; i++) {
+        const c = chs[i];
+        if (!c || c.type !== "whats_app" || !c.whats_app_business_account_id) continue;
+        const w = c.whats_app_business_account_id;
+        if (!byWaba[w]) { byWaba[w] = { wabaId: w, names: [] }; accounts.push(byWaba[w]); }
+        const nm = (c.inbox && c.inbox.name) || c.name || "WhatsApp";
+        byWaba[w].names.push(nm + (c.phone_number ? " (" + c.phone_number + ")" : ""));
+      }
+      accounts.forEach(function (a) { a.label = a.names.join(", "); delete a.names; });
+    } catch (_) { /* ohne Kontenliste: gespeicherte WABA verwenden */ }
+    const reqWaba = (body.wabaId || "").trim();
+    let targetWaba = wabaId;
+    if (reqWaba) {
+      if (!accounts.some(function (a) { return a.wabaId === reqWaba; })) {
+        return e.json(400, { ok: false, error: "Das gewählte Postfach gehört nicht (mehr) zu deinem SuperChat-Account. Bitte Vorschau neu laden." });
+      }
+      targetWaba = reqWaba;
+    }
+    const targetAcc = accounts.filter(function (a) { return a.wabaId === targetWaba; })[0];
+    const targetLabel = targetAcc ? targetAcc.label : "";
 
     // ── Vorlage + Overlay + Einstellungen laden ──
     let t = null;
@@ -276,7 +306,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     // ── PREVIEW: nichts schreiben ──
     if (action === "preview") {
       return e.json(200, {
-        ok: true, action: "preview", wabaId: wabaId,
+        ok: true, action: "preview", wabaId: targetWaba, accounts: accounts, defaultWabaId: wabaId,
         preview: {
           name: name, category: category, language: "de",
           folderName: folderName, folderExists: folderExists,
@@ -315,7 +345,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
 
     // SuperChat führt den lesbaren Anzeigenamen (so wie er im Sync geliefert wird) und erzeugt den
     // Meta-konformen technischen Namen selbst — daher lesbaren Namen senden, NICHT slugifizieren.
-    const payload = { name: name, whats_app_business_account_id: wabaId, content: content };
+    const payload = { name: name, whats_app_business_account_id: targetWaba, content: content };
     if (folderId) payload.folder_id = folderId;
 
     // Bei Namenskonflikt (409 "Vorlage existiert bereits") automatisch mit " Kopie"-Suffix erneut
@@ -355,7 +385,8 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
       const lg = new Record($app.findCollectionByNameOrId("tenant_push_log"));
       lg.set("tenant", tenant);
       lg.set("template", templateId);
-      lg.set("template_name", usedName);
+      // WV-16: bei mehreren Postfächern im Verlauf erkennbar machen, wohin eingereicht wurde
+      lg.set("template_name", usedName + (accounts.length > 1 && targetLabel ? " → " + targetLabel : ""));
       lg.set("sc_template_id", scId);
       lg.set("status", status || "error");
       lg.set("error", errMsg);
@@ -363,7 +394,7 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     } catch (_) { /* Log darf den Push nicht blockieren */ }
 
     if (errMsg) return e.json(200, { ok: false, error: errMsg });
-    return e.json(200, { ok: true, action: "submit", status: status, scTemplateId: scId, folderAssigned: !!folderId, name: usedName, renamed: usedName !== name });
+    return e.json(200, { ok: true, action: "submit", status: status, scTemplateId: scId, folderAssigned: !!folderId, name: usedName, renamed: usedName !== name, accountLabel: targetLabel });
   } catch (err) {
     console.log("[superchat_push] error:", String((err && err.message) || err));
     return e.json(500, { ok: false, error: "Interner Fehler beim Push." });

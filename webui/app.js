@@ -4,8 +4,12 @@
 const API = location.origin;
 // WV-15: sichtbare Version der Kunden-UI + „Was ist neu". Bei jedem kundenwirksamen Deploy
 // APP_VERSION hochzählen und oben in RELEASES einen Eintrag ergänzen (Kundensprache, kein Technik-Jargon).
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const RELEASES = [
+  { version: '1.2.0', date: '27.10.2026', items: [
+    'Mehrere WhatsApp-Postfächer (z. B. Coexist-Modus): Beim Einreichen wählst du, in welche Postfächer die Vorlage soll – auch mehrere auf einmal. Deine Auswahl wird gemerkt.',
+    '„Alle einreichen" nutzt dieselbe Postfach-Auswahl.',
+  ] },
   { version: '1.1.0', date: '27.10.2026', items: [
     'Variablen werden beim Einreichen automatisch deinen eigenen SuperChat-Kontakt-Attributen zugeordnet (z. B. „Lead Produkt") statt als leere Platzhalter {{1}}, {{2}}.',
     'Grußformel (formell/informell) und „Aktueller Benutzer" (Name, Vorname, Nachname) werden als echte SuperChat-Platzhalter eingereicht – nicht mehr als Freitext.',
@@ -309,19 +313,45 @@ async function copyText(text, btnEl, restore) {
 }
 function closeModal() { $('#modal').classList.add('hidden'); }
 
+/* ─── Postfach-Auswahl (WV-16, Coexist-Modus) ─────────────────────────────── */
+// AI-generated: WV-16 — Vorlagen gehören zur WhatsApp-Business-Konto-ID (WABA); im Coexist-Modus hat
+// jedes Postfach eine eigene. Auswahl nur anzeigen, wenn es mehr als ein Konto gibt; letzte Wahl merken.
+function savedWabas() { try { return JSON.parse(localStorage.getItem('sc_wabas') || '[]'); } catch (_) { return []; } }
+function accountPickerHtml(accounts, defaultWaba) {
+  if (!accounts || accounts.length < 2) return '';
+  const saved = savedWabas().filter(w => accounts.some(a => a.wabaId === w));
+  const pre = saved.length ? saved : [defaultWaba || accounts[0].wabaId];
+  return `<div class="acc-pick"><p><b>In welche Postfächer einreichen?</b></p>${accounts.map(a =>
+    `<label class="acc-row"><input type="checkbox" class="acc-cb" value="${esc(a.wabaId)}" ${pre.includes(a.wabaId) ? 'checked' : ''}> ${esc(a.label)}</label>`).join('')}
+    <p class="sub">Jedes gewählte Postfach bekommt eine eigene Einreichung bei Meta.</p></div>`;
+}
+// Liefert die gewählten WABAs ([''] = Standard-Konto, wenn keine Auswahl angezeigt wird) oder null bei leerer Auswahl.
+function pickedWabas(root) {
+  const cbs = $$('.acc-cb', root);
+  if (!cbs.length) return [''];
+  const sel = cbs.filter(c => c.checked).map(c => c.value);
+  if (!sel.length) return null;
+  try { localStorage.setItem('sc_wabas', JSON.stringify(sel)); } catch (_) {}
+  return sel;
+}
+function accLabel(accounts, waba) { const a = (accounts || []).find(x => x.wabaId === waba); return a ? a.label : ''; }
+
 /* ─── Push nach SuperChat = Einreichen bei Meta (VOR-9 Slice 2) ─────────────── */
 // AI-generated: VOR-9 — Vorschau (serverseitig gebaute effektive Vorlage), KEINE Writes
+let PUSH_ACCOUNTS = [];
 async function pushPreview(id) {
   const panel = $('#push-panel'); panel.classList.remove('hidden');
   panel.innerHTML = '<p class="sub">Vorschau lädt…</p>';
   try {
-    const r = await api('POST', '/api/vor/push-template', { templateId: id, action: 'preview' });
+    const sessionKey = sessionStorage.getItem('sc_session_key') || '';
+    const r = await api('POST', '/api/vor/push-template', { templateId: id, action: 'preview', sessionKey });
     if (!r.ok) {
       const hint = /Verbindung/.test(r.error || '') ? ' → trag deine SuperChat-API in den ⚙️ Einstellungen ein.' : '';
       panel.innerHTML = `<p class="error">${esc(r.error || 'Fehler')}${hint}</p>`;
       return;
     }
     const p = r.preview;
+    PUSH_ACCOUNTS = r.accounts || [];
     const folderTxt = p.folderName
       ? (p.folderExists ? `Ordner „${esc(p.folderName)}" (vorhanden)` : `Ordner „${esc(p.folderName)}" (wird neu angelegt)`)
       : 'kein Ordner';
@@ -337,6 +367,7 @@ async function pushPreview(id) {
           ${(p.variables || []).map(v => `<li>{{${v.position}}} → <b>${esc(v.label || v.attribute)}</b></li>`).join('')}
           ${warn}
         </ul>
+        ${accountPickerHtml(PUSH_ACCOUNTS, r.defaultWabaId)}
         <p class="placeholder">⚠️ Verbindlich: Meta prüft die Vorlage (kann abgelehnt werden, zählt gegen dein Template-Limit).</p>
         <div class="actions">
           <button class="btn-save" id="push-go">Jetzt verbindlich einreichen</button>
@@ -351,15 +382,23 @@ async function pushPreview(id) {
 // AI-generated: VOR-9 — verbindliches Einreichen bei Meta (session-Key falls Modus „nur Sitzung")
 async function pushSubmit(id) {
   const msg = $('#push-msg'), btn = $('#push-go');
-  msg.className = 'hidden'; btn.disabled = true; btn.textContent = 'Reicht ein…';
+  msg.className = 'hidden';
+  const wabas = pickedWabas($('#push-panel'));
+  if (!wabas) { msg.className = 'error'; msg.textContent = 'Bitte mindestens ein Postfach auswählen.'; return; }
+  btn.disabled = true; btn.textContent = 'Reicht ein…';
   try {
     const sessionKey = sessionStorage.getItem('sc_session_key') || '';
-    const r = await api('POST', '/api/vor/push-template', { templateId: id, action: 'submit', sessionKey });
-    if (r.ok) {
-      msg.className = 'ok-msg';
-      msg.textContent = `✓ Eingereicht — Status: ${esc(r.status || 'pending')}${r.folderAssigned ? ' · Ordner zugeordnet' : ''}. Meta prüft die Vorlage.`;
-      btn.classList.add('hidden');
-    } else { msg.className = 'error'; msg.textContent = 'Fehler: ' + esc(r.error || 'unbekannt'); }
+    // WV-16: eine Einreichung pro gewähltem Postfach (Konto)
+    const lines = []; let allOk = true;
+    for (const wabaId of wabas) {
+      const r = await api('POST', '/api/vor/push-template', { templateId: id, action: 'submit', sessionKey, wabaId });
+      const where = wabas.length > 1 ? (accLabel(PUSH_ACCOUNTS, wabaId) || 'Postfach') + ': ' : '';
+      if (r.ok) lines.push(`✓ ${where}eingereicht — Status: ${r.status || 'pending'}${r.folderAssigned ? ' · Ordner zugeordnet' : ''}`);
+      else { allOk = false; lines.push(`✗ ${where}${r.error || 'Fehler'}`); }
+    }
+    msg.className = allOk ? 'ok-msg' : 'error';
+    msg.innerHTML = lines.map(esc).join('<br>') + (allOk ? '<br>Meta prüft die Vorlage.' : '');
+    if (allOk) btn.classList.add('hidden');
   } catch (e) { msg.className = 'error'; msg.textContent = 'Fehler: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = 'Jetzt verbindlich einreichen'; }
 }
@@ -372,37 +411,56 @@ async function refreshScButton() {
   catch (_) { $('#bulk-btn').classList.add('hidden'); }
 }
 function closeBulk() { $('#bulk').classList.add('hidden'); }
-function openBulkPush() {
+async function openBulkPush() {
   const items = STATE.templates.filter(t => !effective(t).hidden).map(t => ({ id: t.id, name: effective(t).name }));
   $('#bulk').classList.remove('hidden');
   if (!items.length) { $('#bulk-body').innerHTML = '<h2>Alle einreichen</h2><p class="sub">Keine Vorlagen vorhanden.</p>'; return; }
+  // WV-16: Postfächer (Konten) einmal vorab holen — die Vorschau der ersten Vorlage liefert die Liste (keine Writes).
+  $('#bulk-body').innerHTML = '<h2>📤 Alle Vorlagen einreichen</h2><p class="sub">Postfächer werden geladen…</p>';
+  let accounts = [], defWaba = '';
+  try {
+    const pr = await api('POST', '/api/vor/push-template', { templateId: items[0].id, action: 'preview', sessionKey: sessionStorage.getItem('sc_session_key') || '' });
+    accounts = pr.accounts || []; defWaba = pr.defaultWabaId || '';
+  } catch (_) { /* ohne Liste: Standard-Konto */ }
   const rows = items.map(it => `<div class="bp-row" id="bp-${it.id}"><span class="bp-name">${esc(it.name)}</span><span class="bp-status">wartet</span></div>`).join('');
   $('#bulk-body').innerHTML = `
     <h2>📤 Alle Vorlagen einreichen</h2>
     <p class="sub">${items.length} Vorlage(n) werden in deinem SuperChat-Account <b>bei Meta zur Freigabe</b> eingereicht.</p>
     <p class="placeholder">⚠️ Verbindlich: jede Einreichung zählt gegen dein Template-Limit, Ablehnungen drücken die Quality-Rating. Personalisierung (Firma + Links) wird angewendet.</p>
+    ${accountPickerHtml(accounts, defWaba)}
     <div class="actions">
       <button class="btn-save" id="bulk-go">Alle ${items.length} verbindlich einreichen</button>
       <button class="btn-reset" id="bulk-cancel">Abbrechen</button>
     </div>
     <div id="bulk-sum" class="hidden"></div>
     <div class="bp-list">${rows}</div>`;
-  $('#bulk-go').onclick = () => { const b = $('#bulk-go'); b.disabled = true; b.textContent = 'Läuft…'; runBulkPush(items, b); };
+  $('#bulk-go').onclick = () => {
+    const wabas = pickedWabas($('#bulk-body'));
+    const sum = $('#bulk-sum');
+    if (!wabas) { sum.className = 'error'; sum.textContent = 'Bitte mindestens ein Postfach auswählen.'; return; }
+    const b = $('#bulk-go'); b.disabled = true; b.textContent = 'Läuft…'; runBulkPush(items, b, wabas, accounts);
+  };
   $('#bulk-cancel').onclick = closeBulk;
 }
-async function runBulkPush(items, goBtn) {
+async function runBulkPush(items, goBtn, wabas = [''], accounts = []) {
   const sessionKey = sessionStorage.getItem('sc_session_key') || '';
   let ok = 0, fail = 0;
   for (const it of items) {
     const row = document.getElementById('bp-' + it.id);
     const st = row && row.querySelector('.bp-status');
     if (st) st.textContent = '… reicht ein';
-    try {
-      const r = await api('POST', '/api/vor/push-template', { templateId: it.id, action: 'submit', sessionKey });
-      if (r.ok) { ok++; if (row) { row.classList.add('bp-ok'); if (st) st.textContent = '✓ ' + (r.status || 'pending'); } }
-      else { fail++; if (row) { row.classList.add('bp-fail'); if (st) st.textContent = '✗ ' + (r.error || 'Fehler'); } }
-    } catch (e) { fail++; if (row) { row.classList.add('bp-fail'); if (st) st.textContent = '✗ ' + e.message; } }
-    await new Promise(res => setTimeout(res, 250)); // sanft gegen SuperChat-Rate-Limits
+    // WV-16: pro Vorlage einmal je gewähltem Postfach
+    const res = [];
+    for (const wabaId of wabas) {
+      const where = wabas.length > 1 ? (accLabel(accounts, wabaId) || 'Postfach') + ': ' : '';
+      try {
+        const r = await api('POST', '/api/vor/push-template', { templateId: it.id, action: 'submit', sessionKey, wabaId });
+        if (r.ok) { ok++; res.push({ ok: true, t: '✓ ' + where + (r.status || 'pending') }); }
+        else { fail++; res.push({ ok: false, t: '✗ ' + where + (r.error || 'Fehler') }); }
+      } catch (e) { fail++; res.push({ ok: false, t: '✗ ' + where + e.message }); }
+      await new Promise(r2 => setTimeout(r2, 250)); // sanft gegen SuperChat-Rate-Limits
+    }
+    if (row) { row.classList.add(res.every(x => x.ok) ? 'bp-ok' : 'bp-fail'); if (st) st.textContent = res.map(x => x.t).join(' · '); }
   }
   const sum = $('#bulk-sum'); sum.className = fail ? 'error' : 'ok-msg';
   sum.textContent = `Fertig: ${ok} eingereicht${fail ? ', ' + fail + ' Fehler' : ''}.`;
