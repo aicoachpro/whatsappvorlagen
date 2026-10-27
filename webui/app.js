@@ -2,6 +2,18 @@
 'use strict';
 
 const API = location.origin;
+// WV-15: sichtbare Version der Kunden-UI + „Was ist neu". Bei jedem kundenwirksamen Deploy
+// APP_VERSION hochzählen und oben in RELEASES einen Eintrag ergänzen (Kundensprache, kein Technik-Jargon).
+const APP_VERSION = '1.1.0';
+const RELEASES = [
+  { version: '1.1.0', date: '27.10.2026', items: [
+    'Variablen werden beim Einreichen automatisch deinen eigenen SuperChat-Kontakt-Attributen zugeordnet (z. B. „Lead Produkt") statt als leere Platzhalter {{1}}, {{2}}.',
+    'Grußformel (formell/informell) und „Aktueller Benutzer" (Name, Vorname, Nachname) werden als echte SuperChat-Platzhalter eingereicht – nicht mehr als Freitext.',
+    'Beim Hinterlegen deines SuperChat-API-Keys siehst du sofort, welche Attribute zugeordnet werden und welche in deinem SuperChat noch fehlen.',
+    'Die Vorschau vor dem Einreichen zeigt für jeden Platzhalter, was eingesetzt wird.',
+    'Neu: Versionsnummer oben rechts — ein Klick zeigt, was sich geändert hat.',
+  ] },
+];
 // VOR-9 (SuperChat-Push) live (Hook + SUPERCHAT_ENC_KEY + Tabellen aktiv, 2026-06-22 verifiziert).
 const FEATURE_SUPERCHAT = true;
 const PUSH_BLOCK = '<div class="copy-block" id="push-block"><h3>📤 Direkt an SuperChat einreichen</h3><p class="placeholder">Reicht diese Vorlage in deinem SuperChat-Account zur <b>Meta-Freigabe</b> ein (kein Entwurf — Meta prüft sie). Voraussetzung: SuperChat-Verbindung in den ⚙️ Einstellungen.</p><div class="actions"><button class="btn-save" id="push-btn">Vorschau &amp; einreichen</button></div><div id="push-panel" class="hidden"></div></div>';
@@ -970,12 +982,34 @@ function showResetConfirm(token) {
 /* ─── Boot ─────────────────────────────────────────────────────────────── */
 async function boot() {
   show('app');
+  $('#version-btn').textContent = 'v' + APP_VERSION;
+  $('#version-btn').onclick = showWhatsNew;
   $('#admin-btn').classList.toggle('hidden', !isAdmin());
   // VOR-12: „Einstellungen" (persönliche Kunden-Seite) nur für Konten mit Mandant — Admin hat keinen.
   $('#settings-btn').classList.toggle('hidden', !store.user?.tenant);
   await loadData(); render();
   refreshScButton();
   maybeShowRenewal();
+  maybeShowWhatsNew();
+}
+
+/* ─── Version + „Was ist neu" (WV-15) ────────────────────────────────────── */
+// AI-generated: WV-15
+function showWhatsNew() {
+  const list = RELEASES.map(r => `
+    <h3>Version ${esc(r.version)} <span class="sub">· ${esc(r.date)}</span></h3>
+    <ul class="sc-steps">${r.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`).join('');
+  $('#modal-body').innerHTML = `<h2>Was ist neu?</h2>${list}
+    <div class="actions"><button class="btn-save" id="whatsnew-ok">Alles klar</button></div>`;
+  $('#modal').classList.remove('hidden');
+  $('#whatsnew-ok').onclick = closeModal;
+  try { localStorage.setItem('seen_version', APP_VERSION); } catch (_) {}
+}
+function maybeShowWhatsNew() {
+  let seen = null;
+  try { seen = localStorage.getItem('seen_version'); } catch (_) {}
+  // Nicht über den Verlängerungs-Dialog legen.
+  if (seen !== APP_VERSION && $('#renewal').classList.contains('hidden')) showWhatsNew();
 }
 
 /* ─── Laufzeit abgelaufen → Verlängerung anfragen (VOR-13) ──────────────────── */

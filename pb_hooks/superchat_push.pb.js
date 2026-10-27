@@ -145,8 +145,17 @@ routerAdd("POST", "/api/vor/push-template", (e) => {
     // existiert beim Kunden nicht — vorher landete die Variable dort deshalb nur als {{1}}/Freitext.
     // Smart-/Sender-Attribute (Aktueller Benutzer, Grußformel) haben kein Create-Pendant: legt der
     // Kunde ein gleichnamiges Kontakt-Attribut an, wird es genommen, sonst wildcard + Warnung.
-    const STD_VAR_MAP = { "Vorname": "first_name", "Nachname": "last_name", "Geschlecht": "gender", "Freitext": "wildcard" };
-    const STD_LABEL = { first_name: "Vorname", last_name: "Nachname", gender: "Geschlecht", wildcard: "Freitext" };
+    // Smart-Kennungen am 2026-10-27 live gegen SuperChat ermittelt (WV-14; Unsinns-Kennung → 400,
+    // Treffer per GET gegengeprüft: SuperChat setzt genau diesen Anzeigenamen). Nicht dokumentiert.
+    const STD_VAR_MAP = {
+      "Vorname": "first_name", "Nachname": "last_name", "Geschlecht": "gender", "Freitext": "wildcard",
+      "Informelle Grußformel": "informal_greeting", "Formelle Grußformel": "formal_greeting",
+      "Aktueller Benutzer": "current_user_full_name",
+      "Aktueller Benutzer - Vorname": "current_user_first_name",
+      "Aktueller Benutzer - Nachname": "current_user_last_name",
+    };
+    const STD_LABEL = {};
+    Object.keys(STD_VAR_MAP).forEach(function (k) { STD_LABEL[STD_VAR_MAP[k]] = k; });
     const scBase = ($os.getenv("SUPERCHAT_BASE_URL") || "https://api.superchat.com/v1.0").replace(/\/$/, "");
     function normName(s) { return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
     // Alle Kontakt-Attribute des Kunden holen (paginiert). null = Abruf fehlgeschlagen.

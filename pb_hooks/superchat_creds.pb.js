@@ -84,7 +84,9 @@ routerAdd("POST", "/api/vor/superchat-key", (e) => {
       }
       if (fetched) {
         // Welche Variablen nutzen die (nicht gelöschten) Vorlagen? Standard-Variablen brauchen kein Attribut.
-        const STD = { "vorname": 1, "nachname": 1, "geschlecht": 1, "freitext": 1 };
+        // Standard- und Smart-Platzhalter haben feste SuperChat-Kennungen (siehe superchat_push.pb.js) — kein Attribut nötig.
+        const STD = { "vorname": 1, "nachname": 1, "geschlecht": 1, "freitext": 1, "informelle grußformel": 1, "formelle grußformel": 1,
+          "aktueller benutzer": 1, "aktueller benutzer - vorname": 1, "aktueller benutzer - nachname": 1 };
         const needed = {};
         const tpls = $app.findAllRecords("templates");
         for (let i = 0; i < tpls.length; i++) {

@@ -2,6 +2,13 @@
 
 ## 2026-10-27
 
+### WV-15: Versionsanzeige + „Was ist neu" + kein veralteter Browser-Cache
+
+- **Ursache „nach Deploy keine Veränderung sichtbar":** `pb_public` kam ohne `Cache-Control` — Browser cachten `app.js`/`index.html` heuristisch weiter. Neu `pb_hooks/static_cache.pb.js`: `Cache-Control: no-cache` für alle Nicht-API-GETs (Revalidierung, unverändert = 304).
+- Kunden-UI: Versionsnummer oben rechts (`APP_VERSION` in `webui/app.js`, Start 1.1.0), Klick öffnet „Was ist neu" (`RELEASES`). Nach einem Update erscheint der Hinweis einmalig (`localStorage.seen_version`).
+- Pflege: bei jedem kundenwirksamen Deploy `APP_VERSION` hochzählen und `RELEASES` oben ergänzen.
+- **WV-14-Nachtrag — Smart-Platzhalter gelöst:** SuperChat validiert `attribute_identifier` streng (Unsinns-Kennung → 400 „Die Vorlagenvariablenkennung ist ungültig"), die Kennungen sind aber nirgends dokumentiert. Live ermittelt (mit Thomas' Freigabe, jede Test-Vorlage per GET gegengeprüft und sofort gelöscht): `informal_greeting` → „Informelle Grußformel", `formal_greeting` → „Formelle Grußformel", `current_user_full_name` → „Aktueller Benutzer", `current_user_first_name` / `current_user_last_name` → „Aktueller Benutzer - Vorname/Nachname". Abgelehnt u. a.: `greeting`, `salutation`, `current_user`, `user_name`, `agent_name`, `workspace_name`, `email`, `phone_number`, `name`. In `STD_VAR_MAP` (Push) und im Key-Abgleich (Creds) aufgenommen.
+
 ### WV-14: Push-Variablen auf die Kontakt-Attribute des Kunden mappen
 
 Kunden-Einreichungen kamen in deren SuperChat nur mit `{{1}}`/`{{2}}` (Freitext) an statt mit den passenden Kontakt-Attributen.

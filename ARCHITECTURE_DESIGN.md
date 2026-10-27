@@ -57,6 +57,7 @@ Notion ist abgeschaltet (Phase 6 / VOR-2, 2026-06-21, ehem. VOE-242) — Code, S
 | Server-Hooks | `pb_hooks/superchat_creds.pb.js`, `pb_hooks/superchat_push.pb.js` | PocketBase-JS-Hooks: verschlüsselte Per-Tenant-Anbindung (AES-256-GCM, `SUPERCHAT_ENC_KEY`) + Push = Meta-Einreichung (effektive Vorlage serverseitig, fail-closed ohne `tenant_settings` WV-10, Ordner-Auto, Audit `tenant_push_log`), VOR-9; beide Routen nur `role=customer` (WV-11) |
 | Admin-Lifecycle-Hook | `pb_hooks/tenant_admin.pb.js` | Transaktionale Kunden-Anlage/-Löschung für die Admin-UI (`/api/vor/admin/customer{,-user}`, `$app.runInTransaction`, Last-User-Check serverseitig + `expectLast`-409), WV-9 |
 | users-Guard | `pb_hooks/users_guard.pb.js` | Request-Hooks auf `users`: App-Admin legt nur `role=customer` an, kein Rollen-/Tenant-Wechsel, Admin-Löschung nur Superuser, WV-11 |
+| UI-Cache-Header | `pb_hooks/static_cache.pb.js` | `Cache-Control: no-cache` für alle Nicht-API-GETs, damit Deploys sofort sichtbar sind, WV-15 |
 | Kunden-UI | `webui/` | Galerie, Overlay-Editor, Kundenverwaltung, SuperChat-Verbindung |
 | Config (SSoT) | `lib/config.js` | VERSION + DOC_FILES + CONFIG |
 | Self-Healing / DocSync | `agents/self-healing.js`, `lib/doc-sync.js` | Versions-Drift, Obsidian-Spiegel |
