@@ -153,6 +153,13 @@ function check(name, cond) { results.push({ name, ok: !!cond }); console.log(`  
     check('Admin fügt zweiten Benutzer zum Mandanten hinzu', mk2.status === 200 && !!mk2.json?.ok);
     const dUid2 = mk2.json?.userId; if (dUid2) created.users.push(dUid2);
 
+    // WV-17: Admin sieht die E-Mails beider Benutzer (emailVisibility=false), Kunde nicht
+    const ulAdm = await req('GET', '/api/vor/admin/users', undefined, tokAdm);
+    const mails = new Set((ulAdm.json?.items || []).map(u => u.email));
+    check('Admin sieht E-Mails der Benutzer über /api/vor/admin/users', ulAdm.status === 200 && mails.has(emailD1) && mails.has(emailD2));
+    const ulCust = await req('GET', '/api/vor/admin/users', undefined, tokA);
+    check('Kunde A darf /api/vor/admin/users NICHT nutzen (403)', ulCust.status === 403);
+
     // Veraltete Client-Ansicht: „letzter Benutzer" behauptet, obwohl 2 existieren → 409
     const delStale = await req('DELETE', `/api/vor/admin/customer-user/${dUid1}?expectLast=1`, undefined, tokAdm);
     check('Löschen mit veralteter Ansicht (expectLast-Mismatch) → 409', delStale.status === 409);

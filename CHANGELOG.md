@@ -1,5 +1,13 @@
 # WhatsAppVorlagen SuperChat — Changelog
 
+## 2026-11-20
+
+### WV-17: Fenster schließt beim Kopieren · Kundenliste ohne E-Mails — UI v1.2.1
+
+- **Fenster weg beim Kopieren:** Alle Modals (Vorlage, Kunden, Einstellungen, Alle einreichen) schlossen per Backdrop-`click`. Mousedown im Feld + Mouseup auf dem Backdrop (Markieren über den Rand hinaus) erzeugt einen `click` auf dem Backdrop → Fenster zu, Eingaben weg. Neu `closeOnBackdrop()`: schließt nur, wenn auch der Mousedown auf dem Backdrop lag.
+- **Keine E-Mails in „Kunden verwalten":** Kunden-User haben `emailVisibility=false`, der App-Admin ist kein Superuser → PocketBase liefert `email` leer (Löschdialog zeigte nur „diesen Benutzer"; CSV-Dublettenprüfung erkannte keine bestehenden Adressen). Neu `GET /api/vor/admin/users` in `tenant_admin.pb.js` (nur role=admin/Superuser) liefert id/email/role/tenant; Admin-Liste und CSV-Import nutzen sie. `emailVisibility` bleibt aus.
+- Isolations-Test: +2 Checks (Admin sieht E-Mails, Kunde → 403).
+
 ## 2026-10-27
 
 ### WV-16: Einreichen in mehrere Postfächer (Coexist-Modus) — UI v1.2.0

@@ -14,6 +14,20 @@
 //   POST   /api/vor/admin/customer                       { name, email, password, firma, ersetzungen, invitedAt? }
 //   POST   /api/vor/admin/customer-user                  { tenantId, email, password }
 //   DELETE /api/vor/admin/customer-user/{id}?expectLast=0|1
+//   GET    /api/vor/admin/users                          (WV-17) id/email/role/tenant aller Benutzer
+
+// WV-17: Kunden-User haben emailVisibility=false. Der Admin ist ein normaler users-Datensatz
+// (kein Superuser), daher liefert die Collection-API ihm `email` leer — die Kundenliste zeigte
+// keine Adressen. Diese Route gibt die Adressen gezielt nur an Admins heraus.
+routerAdd("GET", "/api/vor/admin/users", (e) => {
+  const isSu = typeof e.hasSuperuserAuth === "function" && e.hasSuperuserAuth();
+  if (!isSu && (!e.auth || e.auth.get("role") !== "admin")) return e.json(403, { ok: false, error: "Nur für Admins." });
+  const items = $app.findAllRecords("users").map((u) => ({
+    id: u.id, email: String(u.get("email") || ""), role: u.get("role"), tenant: u.get("tenant"),
+  }));
+  items.sort((a, b) => a.email.localeCompare(b.email));
+  return e.json(200, { items: items });
+}, $apis.requireAuth());
 
 routerAdd("POST", "/api/vor/admin/customer", (e) => {
   try {

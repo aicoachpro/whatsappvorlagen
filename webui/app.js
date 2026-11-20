@@ -4,8 +4,11 @@
 const API = location.origin;
 // WV-15: sichtbare Version der Kunden-UI + „Was ist neu". Bei jedem kundenwirksamen Deploy
 // APP_VERSION hochzählen und oben in RELEASES einen Eintrag ergänzen (Kundensprache, kein Technik-Jargon).
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const RELEASES = [
+  { version: '1.2.1', date: '20.11.2026', items: [
+    'Fenster (z. B. Einstellungen) schließen sich nicht mehr versehentlich, wenn du beim Markieren oder Kopieren mit der Maus über den Fensterrand hinausziehst.',
+  ] },
   { version: '1.2.0', date: '27.10.2026', items: [
     'Mehrere WhatsApp-Postfächer (z. B. Coexist-Modus): Beim Einreichen wählst du, in welche Postfächer die Vorlage soll – auch mehrere auf einmal. Deine Auswahl wird gemerkt.',
     '„Alle einreichen" nutzt dieselbe Postfach-Auswahl.',
@@ -509,7 +512,7 @@ async function openAdmin() {
   try {
     const [tenants, users, rr] = await Promise.all([
       api('GET', '/api/collections/tenants/records?perPage=500&sort=name'),
-      api('GET', '/api/collections/users/records?perPage=500'),
+      api('GET', '/api/vor/admin/users'),   // WV-17: liefert die E-Mails (emailVisibility=false)
       api('GET', '/api/collections/renewal_requests/records?perPage=200').catch(() => ({ items: [] })),
     ]);
     const tById = Object.fromEntries(tenants.items.map(t => [t.id, t]));
@@ -757,7 +760,7 @@ async function csvImportPreview() {
     if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf);
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // BOM entfernen
     const rows = parseCsvText(text);
-    const ul = await api('GET', '/api/collections/users/records?perPage=500&fields=email');
+    const ul = await api('GET', '/api/vor/admin/users');
     const have = new Set(ul.items.map(u => (u.email || '').toLowerCase()));
     const seen = new Set();
     for (const r of rows) { r.exists = have.has(r.email) || seen.has(r.email); seen.add(r.email); }
@@ -1122,18 +1125,26 @@ $('#login-form').addEventListener('submit', async (e) => {
 });
 $('#forgot-btn').addEventListener('click', requestReset);
 $('#logout').addEventListener('click', logout);
+// WV-17: Klick auf den Hintergrund schließt nur, wenn die Maus dort auch GEDRÜCKT wurde.
+// Sonst schloss Markieren/Kopieren in einem Feld mit Loslassen außerhalb das ganze Fenster.
+function closeOnBackdrop(id, close) {
+  const el = $('#' + id);
+  let downOnBackdrop = false;
+  el.addEventListener('mousedown', (e) => { downOnBackdrop = e.target === el; });
+  el.addEventListener('click', (e) => { if (e.target === el && downOnBackdrop) close(); downOnBackdrop = false; });
+}
 $('#modal-close').addEventListener('click', closeModal);
-$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+closeOnBackdrop('modal', closeModal);
 $('#search').addEventListener('input', (e) => { STATE.q = e.target.value; render(); });
 $('#admin-btn').addEventListener('click', openAdmin);
 $('#admin-close').addEventListener('click', closeAdmin);
-$('#admin').addEventListener('click', (e) => { if (e.target.id === 'admin') closeAdmin(); });
+closeOnBackdrop('admin', closeAdmin);
 $('#settings-btn').addEventListener('click', openSettings);
 $('#settings-close').addEventListener('click', closeSettings);
-$('#settings').addEventListener('click', (e) => { if (e.target.id === 'settings') closeSettings(); });
+closeOnBackdrop('settings', closeSettings);
 $('#bulk-btn').addEventListener('click', openBulkPush);
 $('#bulk-close').addEventListener('click', closeBulk);
-$('#bulk').addEventListener('click', (e) => { if (e.target.id === 'bulk') closeBulk(); });
+closeOnBackdrop('bulk', closeBulk);
 
 (async () => {
   // VOR-11: Reset-Link aus der Willkommens-/Passwort-vergessen-Mail.
